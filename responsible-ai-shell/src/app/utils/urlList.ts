@@ -5,19 +5,19 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."
 */
 export const urlList = {
-  server_api_url: 'SERVER_API_URL',
-  frontend_url: 'FRONTEND_URL',
-  admin_url: 'ADMIN_URL',
-  mfe_url: 'MFE_URL',
-  user_name: 'LOGIN_USER_NAME',
-  user_cred: 'LOGIN_USER_CRED',
-  mfe_authenticate: 'MFE_AUTHENTICATE',
-  mfe_account: 'MFE_ACCOUNT',
-  mfe_manifest: 'MFE_MANIFEST',
-  azure_clientid: 'AZURE_CLIENTID',
-  azure_authority: 'AZURE_AUTHORITY',
-  azure_redirecturi: 'AZURE_REDIRECTURI',
-  telemetry_dashboard:'TELEMETRY_DASHBOARD'
+  server_api_url: 'http://localhost:30019/v1/rai/backend',
+  frontend_url: 'http://localhost:30010',
+  admin_url: 'http://localhost:30016',
+  mfe_url: 'http://localhost:30055',
+  user_name: 'admin',
+  user_cred: 'admin',
+  mfe_authenticate: 'http://localhost:30055/api/authenticate/',
+  mfe_account: 'http://localhost:30055/api/account/',
+  mfe_manifest: 'http://localhost:30055/manifest.webapp',
+  azure_clientid: '',
+  azure_authority: '',
+  azure_redirecturi: '',
+  telemetry_dashboard:''
 };
 
   

@@ -135,4 +135,4 @@ services:
 volumes:
   shared_mongo_data:
   mfe_node_modules:
-  # shell_node_modules:
+  shell_node_modules:
