@@ -87,6 +87,24 @@ class ResponsibleAIExplain:
             target = target.values
 
         return data, target, featureNames, targetClassNames
+
+    def resolve_local_input_data(inputData, data, sampleLimit, defaultLimit=500):
+        effective_limit = defaultLimit
+        if sampleLimit is not None:
+            try:
+                parsed_limit = int(sampleLimit)
+                if parsed_limit > 0:
+                    effective_limit = parsed_limit
+            except (TypeError, ValueError):
+                pass
+
+        if inputData is not None:
+            return inputData.values if hasattr(inputData, "values") else inputData
+
+        if isinstance(data, pd.DataFrame):
+            return data.iloc[:effective_limit]
+
+        return data[:effective_limit]
     
     def pipeline_processing(pipeline, dataset, targetClassLabel, inputData=None):
         """
@@ -378,6 +396,7 @@ class ResponsibleAIExplain:
             targetClassNames = params['targetClassNames']
             inputData = params['lineDataset']
             inputIndex = params['inputIndex']
+            sampleLimit = params.get('sampleLimit')
             modelName = type(model).__name__
 
              # Check if the model is a pipeline
@@ -412,7 +431,7 @@ class ResponsibleAIExplain:
                 # Initialize the forecasting model
                 explainer = LimeTabularExplainer(data, feature_names=featureNames, mode='regression')
 
-            inp_data = inputData.values if inputData is not None else data[:500]
+            inp_data = ResponsibleAIExplain.resolve_local_input_data(inputData, data, sampleLimit)
             result = []
             
             def explanation(data):
@@ -491,6 +510,7 @@ class ResponsibleAIExplain:
             targetClassNames = params['targetClassNames']
             inputData = params['lineDataset']
             inputIndex = params['inputIndex']
+            sampleLimit = params.get('sampleLimit')
             modelName = type(model).__name__
 
              # Check if the model is a pipeline
@@ -511,7 +531,7 @@ class ResponsibleAIExplain:
             elif taskType == 'CLASSIFICATION':
                 explainer = LimeTabularExplainer(data, feature_names=featureNames, class_names=targetClassNames, mode='classification')
 
-            inp_data = inputData.values if inputData is not None else data[:500]
+            inp_data = ResponsibleAIExplain.resolve_local_input_data(inputData, data, sampleLimit)
             result = []
             
             def explanation(data):
@@ -582,14 +602,25 @@ class ResponsibleAIExplain:
             preprocessor = params['preprocessor']
             targetClassNames = params['targetClassNames']
             inputData = params['lineDataset']
+            sampleLimit = params.get('sampleLimit')
+            effective_limit = 500
+            if sampleLimit is not None:
+                try:
+                    parsed_limit = int(sampleLimit)
+                    if parsed_limit > 0:
+                        effective_limit = parsed_limit
+                except (TypeError, ValueError):
+                    pass
         
             if preprocessor is not None:
                 predict_fn = lambda x: model.predict(preprocessor.transform(x))
-                transformed_data = preprocessor.transform(inputData if inputData is not None else dataset[:500])
+                transformed_data = preprocessor.transform(
+                    inputData if inputData is not None else dataset[:effective_limit]
+                )
             else:
                 predict_fn = lambda x: model.predict(x)
 
-            dataset = inputData if inputData is not None else dataset[:500]
+            dataset = inputData if inputData is not None else dataset[:effective_limit]
 
             # Create a SHAP explainer
             explainer = shap.Explainer(model, transformed_data)
@@ -656,6 +687,7 @@ class ResponsibleAIExplain:
     def get_explanation(model=None, taskType=None, modelType=None, dataset=None, 
                     preprocessor=None, targetClassLabel=None, 
                     targetClassNames=None, method=None, scope=None, lineDataset=None, inputIndex=None,
+                    sampleLimit=None,
                     api_input_request=None, api_output_response=None):
         try:
             # Prepare the parameters
@@ -671,6 +703,7 @@ class ResponsibleAIExplain:
                         "scope": scope,
                         "lineDataset": lineDataset,
                         "inputIndex": inputIndex,
+                        "sampleLimit": sampleLimit,
                         "api_input_request": api_input_request,
                         "api_output_response": api_output_response
                         }

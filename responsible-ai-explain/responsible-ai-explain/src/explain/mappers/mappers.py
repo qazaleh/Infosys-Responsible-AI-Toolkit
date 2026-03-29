@@ -72,6 +72,7 @@ class GetExplanationRequest(BaseModel):
     method: str = Field(example="ANCHOR-TABULAR")
     inputText: Optional[str] = Field(example="This movie was fantastic! The plot was gripping and the acting was top-notch.")
     inputRow: Optional[Dict] = Field(example={})
+    sampleLimit: Optional[int] = Field(default=500, ge=1, le=5000, example=150)
     
     class Config:
         from_attributes = True

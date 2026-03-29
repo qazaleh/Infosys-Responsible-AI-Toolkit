@@ -48,6 +48,24 @@ class Payload:
         self.__dict__.update(entries)
 
 class ExplainService:
+    DEFAULT_EXPLANATION_METHODS = {
+        ('Scikit-learn', 'CLASSIFICATION', 'Tabular'): {
+            'GLOBAL': ['KERNEL-EXPLAINER'],
+            'LOCAL': ['LIME-TABULAR'],
+        },
+        ('Scikit-learn', 'REGRESSION', 'Tabular'): {
+            'GLOBAL': ['KERNEL-EXPLAINER'],
+            'LOCAL': ['LIME-TABULAR'],
+        },
+        ('Scikit-learn', 'TIMESERIESFORECAST', 'Tabular'): {
+            'GLOBAL': ['TS-KERNEL-EXPLAINER'],
+            'LOCAL': ['TS-LIME-TABULAR'],
+        },
+        ('Statsmodels', 'TIMESERIESFORECAST', 'Tabular'): {
+            'GLOBAL': ['TS-KERNEL-EXPLAINER'],
+            'LOCAL': ['TS-LIME-TABULAR'],
+        },
+    }
 
     def save_as_json_file(fileName:str,content):
         with open(fileName, "w") as outfile:
@@ -60,6 +78,38 @@ class ExplainService:
     def save_html_to_file(html_string, filename):
         with open(filename, 'w') as f:
             f.write(html_string)
+
+    def get_algorithm_name(algorithm):
+        if algorithm is None:
+            return ''
+        algorithm_name = str(algorithm).split('(')[0].strip()
+        if algorithm_name.lower() == 'dict':
+            return ''
+        return algorithm_name
+
+    def get_default_explanation_methods(model_framework, task_type, data_type, scope=None):
+        methods_by_scope = ExplainService.DEFAULT_EXPLANATION_METHODS.get(
+            (model_framework, task_type, data_type)
+        )
+        if not methods_by_scope:
+            return []
+        if scope:
+            return methods_by_scope.get(scope, [])
+
+        methods = []
+        for key in ('GLOBAL', 'LOCAL'):
+            for method in methods_by_scope.get(key, []):
+                if method not in methods:
+                    methods.append(method)
+        return methods
+
+    def normalize_loaded_model(model):
+        if isinstance(model, dict):
+            for key in ('model', 'estimator', 'pipeline', 'classifier'):
+                candidate = model.get(key)
+                if candidate is not None:
+                    return candidate
+        return model
     
     def get_explanation_methods(payload: dict):
         # Check if payload is not None and it contains 'modelId' and 'datasetId'
@@ -104,42 +154,64 @@ class ExplainService:
             cursor = Tbl_Explanation_Methods.find_methods(model_framework=model_details['modelFramework'], 
                                                          task_type=model_details['taskType'], 
                                                          data_type=dataset_details['dataType'])
-        
-            # Check if the cursor is not None
-            if not cursor:
-                log.error("No explanation methods found")
-                return GetExplanationMethodsResponse(status='FAILURE', message='No explanation methods found',dataType='', methods=[])
-            
+            cursor_documents = list(cursor)
+
             method_list = []
-            if payload.scope is not None:
-                scope = payload.scope
-                if use_model_end_point.lower() == 'yes':
-                    for document in cursor:
-                        # Check the scope
-                        if document['scope'] == scope:
-                            method_list.append(document['methods'])
-                else:
-                    # Create a list of explanation methods for the given scope
-                    for document in cursor:
-                        # Check if the modelType is not in the unsupportedModelTypes list for the given explanation method
-                        if document['scope'] == scope and model_details['algorithm'].split('(')[0] not in document['unsupportedModels']:
-                            method_list.append(document['methods'])
+            if not cursor_documents:
+                method_list = ExplainService.get_default_explanation_methods(
+                    model_details['modelFramework'],
+                    model_details['taskType'],
+                    dataset_details['dataType'],
+                    payload.scope
+                )
+                if not method_list:
+                    log.error("No explanation methods found")
+                    return GetExplanationMethodsResponse(status='FAILURE', message='No explanation methods found',dataType='', methods=[])
             else:
-                if use_model_end_point.lower() == 'yes':
-                    for document in cursor:
-                        if document['methods'] not in method_list:
+                model_algorithm_name = ExplainService.get_algorithm_name(model_details.get('algorithm'))
+                if payload.scope is not None:
+                    scope = payload.scope
+                    if use_model_end_point.lower() == 'yes':
+                        for document in cursor_documents:
+                            # Check the scope
+                            if document['scope'] == scope:
+                                method_list.append(document['methods'])
+                    else:
+                        # Create a list of explanation methods for the given scope
+                        for document in cursor_documents:
+                            # Check if the modelType is not in the unsupportedModelTypes list for the given explanation method
+                            unsupported_models = document.get('unsupportedModels', [])
+                            if document['scope'] == scope and (not model_algorithm_name or model_algorithm_name not in unsupported_models):
                                 method_list.append(document['methods'])
                 else:
-                    # Create a list of explanation methods for LOCAL and GLOBAL scopes
-                    for document in cursor:
-                        # Check if the modelType is not in the unsupportedModelTypes list for the given explanation method
-                        if model_details['algorithm'].split('(')[0] not in document['unsupportedModels']:
+                    if use_model_end_point.lower() == 'yes':
+                        for document in cursor_documents:
                             if document['methods'] not in method_list:
-                                method_list.append(document['methods'])
-            
-            # check if method_list is empty or not, if empty raise exception
-            if not method_list:
-                raise ValueError("No explanation methods found for the given modelType, taskType, and dataType")
+                                    method_list.append(document['methods'])
+                    else:
+                        # Create a list of explanation methods for LOCAL and GLOBAL scopes
+                        for document in cursor_documents:
+                            # Check if the modelType is not in the unsupportedModelTypes list for the given explanation method
+                            unsupported_models = document.get('unsupportedModels', [])
+                            if not model_algorithm_name or model_algorithm_name not in unsupported_models:
+                                if document['methods'] not in method_list:
+                                    method_list.append(document['methods'])
+
+                # If DB filters return empty methods, use fallback for known framework/task/data combinations
+                if not method_list:
+                    method_list = ExplainService.get_default_explanation_methods(
+                        model_details['modelFramework'],
+                        model_details['taskType'],
+                        dataset_details['dataType'],
+                        payload.scope
+                    )
+                    if not method_list:
+                        return GetExplanationMethodsResponse(
+                            status='FAILURE',
+                            message='No explanation methods found for the given modelType, taskType, and dataType',
+                            dataType=dataset_details['dataType'],
+                            methods=[]
+                        )
             
             # Create a GetExplanationMethodsResponse object with the scope and methods and return it
             obj = GetExplanationMethodsResponse(status='SUCCESS', 
@@ -198,6 +270,11 @@ class ExplainService:
                 inputRow = payload.inputRow
             else:
                 inputRow = None
+
+            if hasattr(payload, 'sampleLimit'):
+                sampleLimit = payload.sampleLimit
+            else:
+                sampleLimit = None
             preprocessorId = payload.preprocessorId
 
             model_attribute_ids = ModelAttributes.find(model_attributes=['useModelApi'])
@@ -247,6 +324,7 @@ class ExplainService:
                 else:
                     log.error("Unsupported model file type. Supported file types are pkl/h5")
                     return GetExplanationResponse(status='FAILURE', message='Unsupported model file type. Supported file types are pkl/h5', explanation=[])
+            model = ExplainService.normalize_loaded_model(model)
 
             # Get the dataset details 
             if model_details['taskType'] == 'CLASSIFICATION' or model_details['taskType'] == 'CLUSTERING':
@@ -325,6 +403,7 @@ class ExplainService:
                                                                 scope=scope,
                                                                 lineDataset=lineDataset,
                                                                 inputIndex=inputIndex,
+                                                                sampleLimit=sampleLimit,
                                                                 api_input_request= model_details['data'],
                                                                 api_output_response= model_details['prediction']
                                                                 )
