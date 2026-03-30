@@ -1,28 +1,20 @@
-FROM python:3.9.13-slim
+FROM python:3.9.13-slim AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    ACCESS_KEY= \
-    SECRET_KEY=
-
-WORKDIR /app
-
-COPY requirements/requirements.txt requirements/requirements.txt
-COPY lib/ lib/
-
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends build-essential \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app/requirements
-
-RUN python3 -m pip install --upgrade pip \
-    && pip install --no-cache-dir --retries 10 --timeout 180 -r requirements.txt
+    PIP_NO_CACHE_DIR=1
 
 WORKDIR /app
 
 COPY . .
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential \
+    && python -m pip install --upgrade pip \
+    && pip install --prefix=/install --retries 10 --timeout 180 -r requirements/requirements.txt \
+    && apt-get purge -y --auto-remove build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app/src
 

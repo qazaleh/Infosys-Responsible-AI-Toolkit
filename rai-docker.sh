@@ -80,6 +80,8 @@ EXAMPLES:
     $0 ml                    # Start ML services
     $0 logs admin            # Show admin service logs
     $0 restart backend       # Restart backend service
+    $0 rebuild ai-explain    # Rebuild explainability service
+    $0 rebuild fairness      # Rebuild fairness service
     $0 shell rai-mongo       # Open MongoDB shell
 
 For detailed documentation, see DOCKER_USAGE_GUIDE.md

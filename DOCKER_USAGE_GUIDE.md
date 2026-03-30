@@ -182,6 +182,7 @@ docker compose -f docker-compose.optimized.yml down -v
 
 ```bash
 docker compose -f docker-compose.optimized.yml restart admin
+docker compose -f docker-compose.optimized.yml restart ai-explain
 ```
 
 ### Rebuild a Service
@@ -189,10 +190,17 @@ docker compose -f docker-compose.optimized.yml restart admin
 ```bash
 # Rebuild specific service
 docker compose -f docker-compose.optimized.yml build admin
+docker compose -f docker-compose.optimized.yml build ai-explain fairness llm-explain
 
 # Rebuild and restart
 docker compose -f docker-compose.optimized.yml up -d --build admin
+docker compose -f docker-compose.optimized.yml up -d --build ai-explain
+docker compose -f docker-compose.optimized.yml up -d --build fairness
+docker compose -f docker-compose.optimized.yml up -d --build llm-explain
 ```
+
+Use Compose service names for these commands. Examples:
+`admin`, `backend`, `mfe`, `shell`, `model-detail`, `reporting-tool`, `ai-explain`, `fairness`, `privacy`, `llm-explain`, `llm-benchmarking`, `security`, `moderationlayer`, `moderationmodel`, `file-storage`, and `mongo`.
 
 ### Access Service Shell
 

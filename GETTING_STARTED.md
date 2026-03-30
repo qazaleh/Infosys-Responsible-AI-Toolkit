@@ -177,6 +177,9 @@ http://localhost:30010
 # Manage services
 ./rai-docker.sh restart backend    # Restart a service
 ./rai-docker.sh rebuild admin      # Rebuild a service
+./rai-docker.sh rebuild ai-explain # Rebuild explainability
+./rai-docker.sh rebuild fairness   # Rebuild fairness
+./rai-docker.sh rebuild llm-explain # Rebuild LLM explainability
 ./rai-docker.sh shell mongo        # Open MongoDB shell
 ./rai-docker.sh shell admin        # Open service shell
 
@@ -185,6 +188,9 @@ http://localhost:30010
 ./rai-docker.sh down        # Remove containers (keeps data)
 ./rai-docker.sh clean       # Remove everything (deletes data!)
 ```
+
+Use Docker Compose service names with `restart` and `rebuild`. Common names are:
+`admin`, `backend`, `mfe`, `shell`, `model-detail`, `reporting-tool`, `ai-explain`, `fairness`, `privacy`, `llm-explain`, `llm-benchmarking`, `security`, `moderationlayer`, `moderationmodel`, `file-storage`, and `mongo`.
 
 ---
 
@@ -282,11 +288,15 @@ Edit files in your IDE - volumes are mounted, changes reflect immediately
 ### 4. Restart service if needed
 ```bash
 ./rai-docker.sh restart admin
+./rai-docker.sh restart ai-explain
 ```
 
 ### 5. Rebuild after dependency changes
 ```bash
 ./rai-docker.sh rebuild admin
+./rai-docker.sh rebuild ai-explain
+./rai-docker.sh rebuild fairness
+./rai-docker.sh rebuild llm-explain
 ```
 
 ---
