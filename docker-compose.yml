@@ -221,6 +221,7 @@ services:
       DB_NAME: rai_repository
       DB_NAME_WB: rai_repository
       MONGO_PATH: mongodb://mongo:27017/
+      AUTH_TYPE: none
       allow_origin: '["*"]'
       allow_methods: '["GET","POST","OPTIONS","HEAD","DELETE","PATCH","UPDATE"]'
       content_security_policy: "default-src 'self'; img-src data: https:; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net"
