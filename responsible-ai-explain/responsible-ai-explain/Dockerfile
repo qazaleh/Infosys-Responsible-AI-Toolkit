@@ -2,18 +2,27 @@ FROM python:3.9.13-slim
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
 
 WORKDIR /app
 
-COPY requirements/requirement.txt requirements/requirement.txt
+# Copy requirements first for layer caching
+COPY requirements/requirements.txt requirements.txt
 
-RUN pip install --no-cache-dir -r requirements/requirement.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy application code
 COPY . .
+
+# Create non-root user
+RUN useradd --create-home --uid 1000 appuser && \
+    chown -R appuser:appuser /app
+
+USER appuser
 
 WORKDIR /app/src
 
 EXPOSE 8002
 
-CMD ["python", "main.py"]
+CMD ["python3", "main.py"]

@@ -2,6 +2,20 @@ name: responsible-ai-toolkit-optimized
 
 # =============================================================================
 # Optimized Docker Compose for Responsible AI Toolkit
+# Python Services use optimized Dockerfiles with layer caching
+# =============================================================================
+# 
+# FEATURES:
+# - Build cache optimization: dependencies cached separately from code
+# - Non-root user execution (UID 1000) for all services
+# - Consistent python environment variables across all modules
+# - Health checks on core services (mongo)
+# - Profile-based service organization
+#
+# BUILD WITH LAYER CACHING:
+#   docker compose -f docker-compose.optimized.yml build --pull
+#   (--pull ensures fresh base images)
+#
 # =============================================================================
 # 
 # PROFILE ORGANIZATION:
@@ -10,39 +24,42 @@ name: responsible-ai-toolkit-optimized
 #   - mongo: Shared MongoDB database
 #
 # Profile: ui
-#   - admin: Admin API service
-#   - backend: Backend API service
-#   - mfe: Micro-frontend application
-#   - shell: Main shell/UI application
+#   - admin: Admin API service (Python, port 30016)
+#   - backend: Backend API service (Python, port 30019)
+#   - mfe: Micro-frontend application (Node.js, port 30055)
+#   - shell: Main shell/UI application (Node.js, port 30010)
 #
 # Profile: ml-ops
-#   - model-detail: Model details and workbench
-#   - reporting-tool: Report generation service
+#   - model-detail: Model details and workbench (Python, port 30020)
+#   - reporting-tool: Report generation service (Python, port 30021)
 #
 # Profile: explainability
-#   - ai-explain: AI model explainability service
+#   - ai-explain: AI model explainability service (Python, port 8002)
 #
 # Profile: fairness
-#   - fairness: AI fairness testing and analysis
+#   - fairness: AI fairness testing and analysis (Python, port 8000)
 #
 # Profile: privacy
-#   - privacy: Privacy analysis tools
+#   - privacy: Privacy analysis tools (Python, port 30002)
 #
 # Profile: llm
-#   - llm-explain: LLM explainability service
-#   - llm-benchmarking: LLM benchmarking and testing
+#   - llm-explain: LLM explainability service (Python, port 8003)
+#   - llm-benchmarking: LLM benchmarking and testing (Python, port 30022)
 #
 # Profile: security
-#   - security: Security scanning and analysis
-#   - moderationlayer: Content moderation layer
-#   - moderationmodel: Content moderation models
+#   - security: Security scanning and analysis (Python, port 30023)
+#   - moderationlayer: Content moderation layer (Python, port 30024)
+#   - moderationmodel: Content moderation models (Python, port 30025)
 #
 # Profile: storage
-#   - file-storage: File storage and management service
+#   - file-storage: File storage and management service (Python, port 30026)
 #
 # =============================================================================
 # USAGE EXAMPLES:
 # =============================================================================
+#
+# Build all services with optimized caching:
+#   docker compose -f docker-compose.optimized.yml build --pull
 #
 # Start only core + UI:
 #   docker compose -f docker-compose.optimized.yml --profile ui up -d
@@ -52,6 +69,9 @@ name: responsible-ai-toolkit-optimized
 #
 # Start everything:
 #   docker compose -f docker-compose.optimized.yml --profile ui --profile ml-ops --profile explainability --profile fairness --profile privacy --profile llm --profile security --profile storage up -d
+#
+# Watch logs in real-time:
+#   docker compose -f docker-compose.optimized.yml logs -f {service_name}
 #
 # Stop all services:
 #   docker compose -f docker-compose.optimized.yml down
@@ -94,6 +114,7 @@ services:
     build:
       context: ./responsible-ai-admin/responsible-ai-admin
       dockerfile: Dockerfile
+      cache_from: ["type=registry,ref=responsible-ai-admin:latest"]
     depends_on:
       mongo:
         condition: service_healthy
@@ -119,6 +140,7 @@ services:
     build:
       context: ./responsible-ai-backend/backend-rai
       dockerfile: Dockerfile
+      cache_from: ["type=registry,ref=responsible-ai-backend:latest"]
     depends_on:
       mongo:
         condition: service_healthy
@@ -217,6 +239,7 @@ services:
     build:
       context: ./responsible-ai-model-detail/workbench
       dockerfile: Dockerfile
+      cache_from: ["type=registry,ref=responsible-ai-model-detail:latest"]
     depends_on:
       mongo:
         condition: service_healthy
@@ -242,6 +265,7 @@ services:
     build:
       context: ./responsible-ai-reporting-tool/wrapper
       dockerfile: Dockerfile
+      cache_from: ["type=registry,ref=responsible-ai-reporting-tool:latest"]
     depends_on:
       mongo:
         condition: service_healthy
@@ -271,13 +295,10 @@ services:
     build:
       context: ./responsible-ai-explain/responsible-ai-explain
       dockerfile: Dockerfile
+      cache_from: ["type=registry,ref=responsible-ai-explain:latest"]
     depends_on:
       mongo:
         condition: service_healthy
-      model-detail:
-        condition: service_started
-      reporting-tool:
-        condition: service_started
     environment:
       RAI_EXPLAIN_DB: RAI_Explain_DB
       DB_NAME: rai_repository
@@ -305,13 +326,10 @@ services:
     build:
       context: ./responsible-ai-fairness/responsible-ai-fairness
       dockerfile: Dockerfile
+      cache_from: ["type=registry,ref=responsible-ai-fairness:latest"]
     depends_on:
       mongo:
         condition: service_healthy
-      model-detail:
-        condition: service_started
-      reporting-tool:
-        condition: service_started
     environment:
       DB_TYPE: mongo
       DB_NAME: rai_repository
@@ -347,6 +365,7 @@ services:
     build:
       context: ./responsible-ai-privacy/responsible-ai-privacy
       dockerfile: Dockerfile
+      cache_from: ["type=registry,ref=responsible-ai-privacy:latest"]
     depends_on:
       mongo:
         condition: service_healthy
@@ -374,6 +393,7 @@ services:
     build:
       context: ./responsible-ai-llm-explain/responsible-ai-llm-explain
       dockerfile: Dockerfile
+      cache_from: ["type=registry,ref=responsible-ai-llm-explain:latest"]
     depends_on:
       mongo:
         condition: service_healthy
@@ -401,6 +421,7 @@ services:
     build:
       context: ./responsible-ai-llm-benchmarking/responsible-ai-benchmarking
       dockerfile: Dockerfile
+      cache_from: ["type=registry,ref=responsible-ai-llm-benchmarking:latest"]
     working_dir: /app/src
     command: ["python3", "main_api.py"]
     environment:
@@ -424,6 +445,7 @@ services:
     build:
       context: ./responsible-ai-security/wrapper
       dockerfile: Dockerfile
+      cache_from: ["type=registry,ref=responsible-ai-security:latest"]
     depends_on:
       mongo:
         condition: service_healthy
@@ -448,6 +470,7 @@ services:
     build:
       context: ./responsible-ai-moderationlayer
       dockerfile: Dockerfile
+      cache_from: ["type=registry,ref=responsible-ai-moderationlayer:latest"]
     working_dir: /app/src
     command: ["python3", "main.py"]
     environment:
@@ -471,6 +494,7 @@ services:
     build:
       context: ./responsible-ai-moderationmodel
       dockerfile: Dockerfile
+      cache_from: ["type=registry,ref=responsible-ai-moderationmodel:latest"]
     working_dir: /app/src
     command: ["python3", "main_detoxify.py"]
     environment:
@@ -497,6 +521,7 @@ services:
     build:
       context: ./responsible-ai-file-storage
       dockerfile: Dockerfile
+      cache_from: ["type=registry,ref=responsible-ai-file-storage:latest"]
     working_dir: /app/src
     command: ["python3", "main.py"]
     environment:

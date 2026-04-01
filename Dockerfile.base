@@ -1,0 +1,45 @@
+# Base Dockerfile for Python 3.9 Services - Responsible AI Toolkit
+# ===========================================================================
+# This base image provides:
+# - python:3.9.13-slim as foundation
+# - Environment variables for production Python
+# - Non-root user (appuser, UID 1000)
+# - Security hardening (PYTHONDONTWRITEBYTECODE, PYTHONUNBUFFERED)
+# - Optimized layer caching (requirements → code)
+#
+# Usage in service modules:
+#   FROM python:3.9.13-slim
+#   COPY requirements/requirement.txt requirements/requirement.txt
+#   RUN pip install --no-cache-dir -r requirements/requirement.txt
+#   COPY . .
+#   RUN useradd --create-home --uid 1000 appuser && \
+#       chown -R appuser:appuser /app
+#   USER appuser
+#   WORKDIR /app/src
+#   CMD ["python3", "main.py"]
+# ===========================================================================
+
+FROM python:3.9.13-slim
+
+# Production Python environment
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+# Create non-root user for security (must be before switching USER)
+RUN useradd --create-home --uid 1000 appuser && \
+    mkdir -p /app && \
+    chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
+# Note: Individual service modules extend this base with:
+# 1. COPY requirements/requirement.txt requirements/requirement.txt
+# 2. RUN pip install --no-cache-dir -r requirements/requirement.txt
+# 3. COPY . .
+# 4. WORKDIR /app/src
+# 5. CMD ["python3", "main.py"]

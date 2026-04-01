@@ -2,7 +2,7 @@ import setuptools
 from setuptools import find_packages,setup
 from pathlib import Path
 def get_install_requires() -> list[str]:
-      fname = Path(__file__).parent / 'requirements/requirement.txt'
+      fname = Path(__file__).parent / 'requirements/requirements.txt'
       targets = []
       if fname.exists():
           with open(fname, 'r') as f:

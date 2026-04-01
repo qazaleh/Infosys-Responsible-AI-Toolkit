@@ -98,7 +98,7 @@ To run the application, first we need to install Python and the necessary packag
 8. Go to the `requirements` directory where the `requirement.txt` file is present and install the requirements:
     ```sh
     cd responsible-ai-explain\requirements
-    pip install -r requirement.txt
+    pip install -r requirements.txt
     ```
 
 **Note:** 

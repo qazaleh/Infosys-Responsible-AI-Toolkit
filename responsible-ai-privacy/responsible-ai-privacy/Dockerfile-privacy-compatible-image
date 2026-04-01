@@ -31,7 +31,7 @@
   RUN pip3 install -r requirements/requirement.txt -i https://infyartifactory.jfrog.io/artifactory/api/pypi/pypi-remote/simple --user --trusted-host infyartifactory.jfrog.io
    
   #pip command for pre production environment
-  #RUN pip install -r requirements/requirement.txt --index-url https://infyartifactory.jfrog.io/artifactory/api/pypi/pypi-remote/simple --trusted-host infyartifactory.jfrog.io
+  #RUN pip install -r requirements/requirements.txt --index-url https://infyartifactory.jfrog.io/artifactory/api/pypi/pypi-remote/simple --trusted-host infyartifactory.jfrog.io
   WORKDIR src
    
   #python3 command for development environment

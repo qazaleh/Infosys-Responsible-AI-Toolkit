@@ -172,8 +172,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 }
 
 .rolepopup {
-  width: 200px; /* Adjust the width as per your requirement */
-  height: 200px; /* Adjust the height as per your requirement */
+  width: 200px; /* Adjust the width as per your requirements */
+  height: 200px; /* Adjust the height as per your requirements */
   margin-top: 20px !important;
 }
 ngb-popover-window.popover {

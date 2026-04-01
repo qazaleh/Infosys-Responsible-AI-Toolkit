@@ -1,9 +1,28 @@
-FROM PROVIDE PYTHON BASE IMAGE ABOVE 3.9 VERSION
-ENV DEBIAN_FRONTEND=noninteractive
+FROM python:3.9.13-slim
 
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+# Copy requirements first for layer caching
+COPY requirements/requirements.txt requirements.txt
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
 COPY . .
 
-RUN pip install -r requirements/requirement.txt
-WORKDIR src
+# Create non-root user
+RUN useradd --create-home --uid 1000 appuser && \
+    chown -R appuser:appuser /app
 
-CMD ["sh", "-c", "python main.py"]
+USER appuser
+
+WORKDIR /app/src
+
+EXPOSE 8002
+
+CMD ["python3", "main.py"]

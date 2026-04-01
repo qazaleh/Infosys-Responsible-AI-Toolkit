@@ -51,7 +51,7 @@ To run the application, first we need to install Python and the necessary packag
 
 9. Go to the `requirements` directory where the `requirement.txt` file is present and install the requirements:
     ```sh
-    pip install -r requirement.txt
+    pip install -r requirements.txt
     ```
 ## Set Configuration Variables
 

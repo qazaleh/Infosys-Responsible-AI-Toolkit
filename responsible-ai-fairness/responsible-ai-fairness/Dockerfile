@@ -7,17 +7,22 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 WORKDIR /app
 
+# Copy requirements first for layer caching
+COPY requirements/requirements.txt requirements.txt
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
 COPY . .
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends build-essential \
-    && python -m pip install --upgrade pip \
-    && pip install --prefix=/install --retries 10 --timeout 180 -r requirements/requirements.txt \
-    && apt-get purge -y --auto-remove build-essential \
-    && rm -rf /var/lib/apt/lists/*
+# Create non-root user
+RUN useradd --create-home --uid 1000 appuser && \
+    chown -R appuser:appuser /app
+
+USER appuser
 
 WORKDIR /app/src
 
 EXPOSE 8000
 
-CMD ["python", "main_api.py"]
+CMD ["python3", "main.py"]

@@ -23,7 +23,7 @@ for build_config in build_config_list:
                         f"from setuptools import find_packages,setup\r" \
                         f"from pathlib import Path\r"\
                         f"def get_install_requires() -> list[str]:\r"\
-                        f"      fname = Path(__file__).parent / 'requirements/requirement.txt'\r"\
+                        f"      fname = Path(__file__).parent / 'requirements/requirements.txt'\r"\
                         f"      targets = []\r"\
                         f"      if fname.exists():\r"\
                         f"          with open(fname, 'r') as f:\r"\

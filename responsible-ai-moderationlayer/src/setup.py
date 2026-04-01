@@ -13,7 +13,7 @@ from pathlib import Path
 
 def get_install_requires() -> list[str]:
     """Returns requirements.txt parsed to a list"""
-    fname = 'requirementS/requirement.txt'
+    fname = 'requirementS/requirements.txt'
     targets = []
     if fname.exists():
         with open(fname, 'r') as f:

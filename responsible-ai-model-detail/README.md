@@ -48,7 +48,7 @@ To run the application, first we need to install Python and the necessary packag
     Now install the requirements - 
 
     ```sh
-    pip install -r requirement.txt
+    pip install -r requirements.txt
     ```
 ## Set Configuration Variables
 After installing all the required packages, configure the variables necessary to run the APIs.

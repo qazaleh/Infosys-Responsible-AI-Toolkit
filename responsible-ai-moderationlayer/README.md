@@ -197,7 +197,7 @@ source ./myenv/bin/activate
 Now, install the requirements as shown below :
 ```sh
 cd requirements
-pip install -r requirement.txt
+pip install -r requirements.txt
 ```
 
 ## Set Configuration Variables

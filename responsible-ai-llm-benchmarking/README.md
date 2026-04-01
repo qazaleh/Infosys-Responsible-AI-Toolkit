@@ -39,7 +39,7 @@ and activate it by going to
 4.	Install dependencies. 
       1. Go to **responsible-ai-benchmarking\requirements** and run 
       ```bash 
-         pip install -r requirement.txt
+         pip install -r requirements.txt
       ```
       2. if you are on windows, please add **../** in front to .whl file in requirements.txt to install without any errors.
 5. Add required configurations provided below in .env file.

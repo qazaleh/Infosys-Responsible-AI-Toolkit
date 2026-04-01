@@ -47,7 +47,7 @@ To run the application, follow these steps:
 5. **Install Requirements**: Navigate to the `requirements` directory and install the necessary packages:
     ```sh
     cd redteaming\requirements
-    pip install -r requirement.txt
+    pip install -r requirements.txt
     ```
 
 ## Set Configuration Variables

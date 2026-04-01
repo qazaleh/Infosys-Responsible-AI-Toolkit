@@ -62,7 +62,7 @@ To run the application, first we need to install Python and the necessary packag
         Do the needful as written in the end section of file
     - Now, install the requirements:
         ```sh
-        pip install -r ../requirements/requirement.txt
+        pip install -r ../requirements/requirements.txt
         ```
 
 ## Set Configuration Variables
