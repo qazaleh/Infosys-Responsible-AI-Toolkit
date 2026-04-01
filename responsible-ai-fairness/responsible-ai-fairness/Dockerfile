@@ -26,4 +26,4 @@ WORKDIR /app/src
 
 EXPOSE 8000
 
-CMD ["python3", "main.py"]
+CMD ["python3", "main_api.py"]
