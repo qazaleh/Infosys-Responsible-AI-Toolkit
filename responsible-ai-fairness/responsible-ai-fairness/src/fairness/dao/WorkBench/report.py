@@ -49,8 +49,13 @@ class Report:
         if batch_id is None or not isinstance(batch_id, float):
             raise HTTPException(status_code=500, detail="Batch ID is None")
         
-        # Try to find the model by model_id in the database
-        result = self.collection.find_one({"BatchId": batch_id}, {"_id": 0, "ReportFileId": 1,"ReportName":1})
+        projection = {"_id": 0, "ReportFileId": 1, "ReportName": 1, "CreatedDateTime": 1}
+        cursor = self.collection.find({"BatchId": batch_id}, projection).sort("CreatedDateTime", -1)
+        records = list(cursor)
+
+        result = next((record for record in records if not str(record.get("ReportName", "")).endswith(".html")), None)
+        if result is None and records:
+            result = records[0]
         if result is None:
             raise HTTPException(status_code=500, detail="Batch ID not found")
         return result

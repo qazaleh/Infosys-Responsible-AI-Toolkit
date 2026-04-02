@@ -125,12 +125,27 @@ class FileStoreReportDb:
                 raise HTTPException(status_code=500, detail=f"No file found with unique ID {unique_id}")
             # Get the file from the database
             file_content = self.fs.get(file_metadata._id).read()
-            if file_metadata.content_type=="application/pdf":
-                file_name=f"file_{str(unique_id)}.pdf"
-                extenion="pdf"    
-                return {"data": file_content, "name":file_name, "extension": extenion,"contentType":file_metadata.content_type} 
-            
-            return {"data": file_content, "name":file_metadata.filename, "extension": file_metadata.filename.split('.')[-1],"contentType":file_metadata.content_type}
+            filename = getattr(file_metadata, "filename", None)
+            content_type = getattr(file_metadata, "content_type", None)
+
+            if not filename:
+                if content_type == "application/pdf":
+                    filename = f"file_{str(unique_id)}.pdf"
+                elif content_type == "application/zip":
+                    filename = f"file_{str(unique_id)}.zip"
+                else:
+                    filename = f"file_{str(unique_id)}"
+
+            if "." in filename:
+                extension = filename.rsplit(".", 1)[-1]
+            elif content_type == "application/pdf":
+                extension = "pdf"
+            elif content_type == "application/zip":
+                extension = "zip"
+            else:
+                extension = ""
+
+            return {"data": file_content, "name": filename, "extension": extension, "contentType": content_type}
         else:
             if active_file_storage == "azureopenai":
                 download_file_api = os.getenv('AZURE_GET_API')

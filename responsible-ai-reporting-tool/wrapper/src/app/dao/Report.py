@@ -51,7 +51,13 @@ class Report:
         
         # Try to find the model by model_id in the database
         try:
-            report_details = Report.collection.find_one({"BatchId": batch_id, "TenetId": tenet_id}, {"_id": 0, "ReportFileId": 1, "ContentType": 1, "ReportName": 1})
+            projection = {"_id": 0, "ReportFileId": 1, "ContentType": 1, "ReportName": 1, "CreatedDateTime": 1}
+            records = list(
+                Report.collection.find({"BatchId": batch_id, "TenetId": tenet_id}, projection).sort("CreatedDateTime", -1)
+            )
+            report_details = next((record for record in records if not str(record.get("ReportName", "")).endswith(".html")), None)
+            if report_details is None and records:
+                report_details = records[0]
         except Exception as e:
             raise ValueError(f"Invalid BatchID/TenetID: {batch_id}, {tenet_id}: {str(e)}")
         

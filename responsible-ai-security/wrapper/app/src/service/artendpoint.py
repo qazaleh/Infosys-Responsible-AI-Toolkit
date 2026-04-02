@@ -18,7 +18,22 @@ import joblib
 import requests
 import json
 
-import tensorflow as tf
+try:
+    import tensorflow as tf
+except ImportError:
+    class _TensorFlowStub:
+        @staticmethod
+        def executing_eagerly():
+            return False
+
+        class compat:
+            class v1:
+                @staticmethod
+                def disable_eager_execution():
+                    return None
+
+    tf = _TensorFlowStub()
+
 # if tf.executing_eagerly():
 #     tf.compat.v1.disable_eager_execution()
 import warnings

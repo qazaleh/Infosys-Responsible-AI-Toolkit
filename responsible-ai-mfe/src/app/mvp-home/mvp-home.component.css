@@ -192,6 +192,35 @@ h1 {
   box-shadow: 0 0 0 3px rgba(30, 122, 203, 0.16);
 }
 
+.attack-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.attack-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  padding: 8px 10px;
+  border-radius: 11px;
+  border: 1px solid #d4e3f2;
+  background: #f8fbff;
+  color: #21425c;
+}
+
+.attack-item input[type='checkbox'] {
+  width: 15px;
+  height: 15px;
+  accent-color: #1167ad;
+}
+
+.attack-multiselect {
+  min-height: 120px;
+}
+
 .linked-model {
   margin: 0 0 14px;
   font-size: 0.78rem;

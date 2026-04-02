@@ -244,7 +244,7 @@ class Report:
 
             # UT.htmlToPdfWithWatermark({'folder_path':report_path})
 
-            shutil.make_archive(report_path,'zip',report_path)
+            shutil.make_archive(report_path, 'zip', os.path.dirname(report_path), os.path.basename(report_path))
             UT.updateCurrentID()
             del attack_status_row,items_not_equal,sorted_items_not_equal,top_keys,sorted_dict,items_equal,attack_ipop_row,graph_html,html_data
             return foldername
@@ -411,7 +411,7 @@ class Report:
             
             # UT.htmlToPdfWithWatermark({'folder_path':report_path})
             
-            shutil.make_archive(report_path,'zip',report_path)
+            shutil.make_archive(report_path, 'zip', os.path.dirname(report_path), os.path.basename(report_path))
             UT.updateCurrentID()
 
             del df,cols,attack_status_row,attack_input_output_list,attack_ipop_row,column_graph_data,html_data

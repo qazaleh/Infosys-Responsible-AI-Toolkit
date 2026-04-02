@@ -62,6 +62,7 @@ MODEL_CONTAINER_NAME = os.getenv('Model_containerName')
 PDF_CONTAINER_NAME=os.getenv("PDF_CONTAINER_NAME")
 CSV_CONTAINER_NAME=os.getenv("CSV_CONTAINER_NAME")
 ZIP_CONTAINER_NAME=os.getenv("ZIP_CONTAINER_NAME")
+HTML_CONTAINER_NAME=os.getenv("HTML_CONTAINER_NAME")
 class AttributeDict(dict):
     __getattr__ = dict.__getitem__
     __setattr__ = dict.__setitem__
@@ -162,6 +163,8 @@ class FairnessWorkbench:
             container_name=ZIP_CONTAINER_NAME
         elif reportName.endswith('.joblib'):
             container_name=MODEL_CONTAINER_NAME
+        elif reportName.endswith('.html'):
+            container_name=HTML_CONTAINER_NAME or DATASET_CONTAINER_NAME
         else:
             container_name=DATASET_CONTAINER_NAME
             

@@ -2118,73 +2118,90 @@ class Art:
     def HopSkipJumpCSV(payload): 
 
         try:
-
+            print(f"\n{'='*80}\nHopSkipJumpCSV START: batchId={payload}\n{'='*80}")
+            
+            print(f"[1] Reading model file...")
             model, model_path, modelName, modelFramework = UT.readModelFile(payload)
+            print(f"[2] ✓ Model loaded: {modelName}, framework: {modelFramework}")
+            
+            print(f"[3] Reading data file...")
             raw_data, data_path = UT.readDataFile({'BatchId':payload, 'model':model ,'modelFramework':modelFramework})
+            print(f"[4] ✓ Data loaded: {raw_data.shape}")
+            
+            print(f"[5] Reading payload file...")
             Payload_path = UT.readPayloadFile(payload)
+            print(f"[6] ✓ Payload file read")
 
             list_of_column_names = list(raw_data.columns)
             payload_folder_path = UT.getcurrentDirectory() + "/database/payload"
-            #payload_folder_path = os.getcwd()[:-4] + "/database/payload"
             payload_path = os.path.join(payload_folder_path,modelName + ".txt")
+            
+            print(f"[7] Loading payload JSON from {payload_path}...")
             with open(f'{payload_path}') as f:
                 data = f.read()
             data = json.loads(data)
             Output_column = data["groundTruthClassLabel"]
+            print(f"[8] ✓ Target column: {Output_column}")
 
+            print(f"[9] Preparing data for attack...")
             X_train = raw_data.drop([Output_column], axis=1).to_numpy()
             Y_train = raw_data[[Output_column]].to_numpy()
             list_of_column_names.remove(Output_column)
+            print(f"[10] ✓ Data prepared: X={X_train.shape}, Y={Y_train.shape}")
+            
+            print(f"[11] Creating classifier...")
             classifier =  ScikitlearnClassifier(model=model)
+            print(f"[12] ✓ Classifier created")
+            
+            print(f"[13] Generating HopSkipJump attack vectors...")
             ob=hop_skip_jump.HopSkipJump(classifier)
             attackVectors=ob.generate(X_train)
+            print(f"[14] ✓ Attack vectors generated: {attackVectors.shape}")
+            
             bscore = model.score(X_train, Y_train)
-
-            # print("Benign Training Score: %.4f" % bscore)
-            # print("Benign Training sample: ", X_train[0,:])
             bprediction = model.predict([X_train[0]])
-            # print("Benign Training Predicted Label: %i" % bprediction)
             ascore = model.score(attackVectors, Y_train)
-            # print("\nAdversarial Training Score: %.4f" % ascore)
-            # print("Adversarial Training sample: ", attackVectors[0])
             aprediction = model.predict([attackVectors[0]])
-            # print("Adversarial Training Predicted Label: %i" % aprediction)
-            # print("\nActual Label: %i" % Y_train[0])
             perturbation = np.mean(np.abs((attackVectors - X_train)))
-            print('\nAverage perturbation: {:4.2f}'.format(perturbation))
+            print(f"[15] ✓ Scores computed - benign: {bscore:.4f}, adversarial: {ascore:.4f}, perturbation: {perturbation:.4f}")
 
             attack_data_list,attack_data_status = UT.combineList({'attack_data':attackVectors,'target_data':Y_train,'prediction_data':model.predict(attackVectors),'adversial_score':ascore,'perturbation':perturbation,'type':'Evasion'})
             list_of_column_names.extend([Output_column, 'prediction', 'result'])
+            print(f"[16] ✓ Attack data combined")
 
             Payload = {
                     'modelName':modelName,
                     'attackName':"HopSkipJumpTabular",
                     'data_path':data_path,
-                    # 'dataFileName':os.path.basename(data_path).split('.')[0],
-                    # 'base_sample':X_train[0,:],
-                    # 'adversial_sample':attackVectors,
                     'adversial_sample':attack_data_list,
-                    # 'base_score':bscore,
-                    # 'adversial_score':ascore,
-                    # 'base_prediction':bprediction,
-                    # 'adversial_prediction':aprediction,
                     'perturbation':perturbation,
                     'columns':list_of_column_names,
-                    # 'actual_label':Y_train[0],
                     'attack_data_status':attack_data_status
                 }
 
+            print(f"[17] Generating CSV report...")
             foldername = RT.generatecsvreportart(Payload)
+            print(f"[18] ✓ Report generated: {foldername}")
+            
             UT.databaseDelete(model_path)
             UT.databaseDelete(data_path)
             UT.databaseDelete(Payload_path)
+            print(f"[19] ✓ Temp files cleaned")
+            
             del model,modelName,modelFramework,raw_data,X_train,Y_train,attackVectors,attack_data_list,attack_data_status,list_of_column_names,Payload
+            
+            print(f"\n{'='*80}\nHopSkipJumpCSV COMPLETE - returning {foldername}\n{'='*80}\n")
             return {"Job_Id":f'{foldername}'}
         
         except Exception as e:
+            print(f"\n{'='*80}\n✗ HopSkipJumpCSV FAILED:\n{type(e).__name__}: {str(e)}\n{'='*80}\n")
+            import traceback
+            traceback.print_exc()
+            log.error(f"HopSkipJumpCSV FAILED: {type(e).__name__}: {str(e)}", exc_info=True)
             if(telemetry_flg == 'True'):
                 with con.ThreadPoolExecutor() as executor:
-                    executor.submit(log.log_error_to_telemetry, "HopSkipJumpCSV", e, apiEndPoint, errorRequestMethod)        
+                    executor.submit(log.log_error_to_telemetry, "HopSkipJumpCSV", e, apiEndPoint, errorRequestMethod)
+            return {"Job_Id": f"HopSkipJumpCSV_FAILED_{str(e)}"}        
 
 
     def ZooAttackVectors(payload): 

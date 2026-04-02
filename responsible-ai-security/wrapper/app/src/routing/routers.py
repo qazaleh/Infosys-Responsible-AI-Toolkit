@@ -11,6 +11,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 import datetime
 from fastapi import Depends,APIRouter,Query, Body,Form,HTTPException
+from fastapi.responses import FileResponse, HTMLResponse
 from src.mappers.mappers import GetAttackDataRequest
 from src.service.service import Infosys, Bulk
 from src.service.utility import Utility as UT
@@ -75,3 +76,47 @@ async def run_all_attacks(batchId: float = Form(...), dateTime: Optional[datetim
         log.error(f"Error in run_all_attacks: {str(e)}")
         gc.collect()
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+# TEMP DEBUG ENDPOINT: View generated reports
+@bulk.get('/rai/v1/security_workbench/temp_reports')
+async def list_temp_reports():
+    """List all temporary reports generated for debugging"""
+    try:
+        temp_reports_path = UT.getcurrentDirectory() + "/temp_reports"
+        if not os.path.exists(temp_reports_path):
+            return {"message": "No temp reports yet", "path": temp_reports_path}
+        
+        reports = os.listdir(temp_reports_path)
+        report_details = []
+        for report in reports:
+            report_path = os.path.join(temp_reports_path, report)
+            if os.path.isdir(report_path):
+                files = os.listdir(report_path)
+                report_details.append({
+                    "name": report,
+                    "files": files,
+                    "html_url": f"/rai/v1/security_workbench/temp_reports/{report}/"
+                })
+        
+        return {"temp_reports_path": temp_reports_path, "reports": report_details}
+    except Exception as e:
+        log.error(f"Error in list_temp_reports: {str(e)}")
+        return {"error": str(e)}
+
+@bulk.get('/rai/v1/security_workbench/temp_reports/{report_name}/')
+async def get_temp_report_html(report_name: str):
+    """Get the HTML report file"""
+    try:
+        temp_reports_path = UT.getcurrentDirectory() + "/temp_reports"
+        report_path = os.path.join(temp_reports_path, report_name, "report.html")
+        
+        if not os.path.exists(report_path):
+            raise HTTPException(status_code=404, detail=f"Report not found: {report_path}")
+        
+        with open(report_path, 'r') as f:
+            html_content = f.read()
+        
+        return HTMLResponse(content=html_content)
+    except Exception as e:
+        log.error(f"Error in get_temp_report_html: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error reading report: {str(e)}")

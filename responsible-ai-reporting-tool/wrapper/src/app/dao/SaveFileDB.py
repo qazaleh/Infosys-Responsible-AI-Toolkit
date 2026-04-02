@@ -93,8 +93,15 @@ class FileStoreDb:
             
             localTime=time.time()
             time.sleep(1/1000)
+            if content_type == 'application/zip':
+                filename = f"report_{str(localTime).replace('.', '_')}.zip"
+            elif content_type == 'application/pdf':
+                filename = f"report_{str(localTime).replace('.', '_')}.pdf"
+            else:
+                filename = f"report_{str(localTime).replace('.', '_')}"
             try:
                 with FileStoreDb.fs.new_file(_id=str(localTime), 
+                                                filename=filename,
                                                 tenet_id = tenet_id,
                                                 content_type=content_type
                                             ) as f:
@@ -115,9 +122,13 @@ class FileStoreDb:
                 raise ValueError("contentType, and tenet cannot be None")
             
             try:
-                container_name = os.getenv('PDF_CONTAINER_NAME')
+                if content_type == 'application/zip':
+                    container_name = os.getenv('ZIP_CONTAINER_NAME')
+                    filename = "exp_report_zip"
+                else:
+                    container_name = os.getenv('PDF_CONTAINER_NAME')
+                    filename = "exp_pdf_file"
                 upload_file_api = os.getenv('AZURE_UPLOAD_API')
-                filename = "exp_pdf_file" 
                 response =requests.post(url =upload_file_api, files ={"file":(filename, file)}, data ={"container_name":container_name}, verify=FileStoreDb.verify_ssl).json()
                 blob_name =response["blob_name"]
             except Exception as e:

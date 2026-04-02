@@ -9,6 +9,7 @@ WORKDIR /app
 
 # Copy requirements first for layer caching
 COPY requirements/requirements.txt requirements.txt
+COPY lib ./lib
 
 RUN pip install --no-cache-dir -r requirements.txt
 

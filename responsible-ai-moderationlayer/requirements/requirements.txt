@@ -30,4 +30,4 @@ nltk==3.9.1
 boto3
 langchain-aws
 google-generativeai
-../lib/better_profanity-2.0.0-py3-none-any.whl
+better-profanity==0.7.0

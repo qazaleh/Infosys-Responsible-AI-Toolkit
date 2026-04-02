@@ -270,13 +270,25 @@ class Infosys:
     def setAttack(payload):
         
         try:
+            print(f"\n{'='*80}")
+            print(f"setAttack() CALLED")
+            print(f"  Attack: {payload.get('modelUrl')}")
+            print(f"  BatchId: {payload.get('batchId')}")
+            print(f"{'='*80}\n")
+            log.info(f"=== setAttack() called with attack: {payload.get('modelUrl')}, batchId: {payload.get('batchId')}")
+            
             if(payload['modelUrl'] in Infosys.ArtSupportedModel):
-                
+                print(f"✓ Attack '{payload['modelUrl']}' is in ArtSupportedModel list")
+                log.info(f"✓ Attack '{payload['modelUrl']}' is in ArtSupportedModel list")
                 AttackFunction = payload['modelUrl']
 
                 if(AttackFunction == "ProjectedGradientDescentTabular"):
+                    print("→ Executing ProjectedGradientDescentZoo")
+                    log.info("→ Executing ProjectedGradientDescentZoo")
                     response = Art.ProjectedGradientDescentZoo(payload['batchId'])
                 elif(AttackFunction == "ZerothOrderOptimization"):
+                    print("→ Executing ZooAttackVectors")
+                    log.info("→ Executing ZooAttackVectors")
                     response = Art.ZooAttackVectors(payload['batchId'])
                 elif(AttackFunction == "QueryEfficient"):
                     response = Art.QueryEfficient(payload['batchId'])
@@ -331,7 +343,11 @@ class Infosys:
                 elif(AttackFunction == "LabelOnlyDecisionBoundary"):
                     response = Art.LabelOnlyDecisionBoundaryAttack(payload['batchId'])
                 elif(AttackFunction == "HopSkipJumpTabular"):
+                    print("→ Executing HopSkipJumpCSV")
+                    log.info("→ Executing HopSkipJumpCSV")
                     response = Art.HopSkipJumpCSV(payload['batchId'])
+                    print(f"✓ HopSkipJumpCSV completed, response: {response}")
+                    log.info(f"✓ HopSkipJumpCSV completed, response: {response}")
                 # elif(AttackFunction == "HopSkipJumpImage"):
                 #     response = Art.HopSkipJumpImage(payload['batchId'])
                 elif(AttackFunction == "QueryEfficientGradientAttackEndPoint"):
@@ -355,8 +371,19 @@ class Infosys:
                 # elif(AttackFunction == 'Threshold'):
                 #     response = Art.Threshold(payload['batchId']) 
                 elif(AttackFunction == "Augly"):
-                    response = Augly.Augly(payload['batchId'])   
+                    response = Augly.Augly(payload['batchId'])
+                else:
+                    print(f"✗ CRITICAL: Attack '{AttackFunction}' in ArtSupportedModel but no elif condition matched!")
+                    log.error(f"✗ CRITICAL: Attack '{AttackFunction}' in ArtSupportedModel but no elif condition matched!")
+                    response = {"ERROR": f"Attack function '{AttackFunction}' not implemented"}
+                print(f"✓ setAttack() returning response: {response}")
+                log.info(f"=== setAttack() returning response: {response}")
                 return response
+            else:
+                print(f"✗ CRITICAL: Attack '{payload['modelUrl']}' NOT in ArtSupportedModel list!")
+                log.error(f"✗ CRITICAL: Attack '{payload['modelUrl']}' NOT in ArtSupportedModel list!")
+                print(f"Available attacks: {Infosys.ArtSupportedModel}")
+                return {"ERROR": f"Attack '{payload['modelUrl']}' not supported"}
             
         except Exception as exc:
             if(telemetry_flg == 'True'):
@@ -395,41 +422,132 @@ class Bulk:
         try:
             root_path = os.getcwd()
             root_path = UT.getcurrentDirectory() + "/database"
+            os.makedirs(root_path, exist_ok=True)
             dirList = ["data","model","payload","report"]
             for dir in dirList:
                 dirs = root_path + "/" + dir
-                if not os.path.exists(dirs):
-                    os.mkdir(dirs)
+                os.makedirs(dirs, exist_ok=True)
             payload = AttributeDict(payload)
             
-            response = Infosys.setAttack({"batchId":payload["batchId"], "modelUrl":payload["modelUrl"]})["Job_Id"]
-            response = Bulk.sanitize_filenameorfoldername(response)
-            #response is folder name only
-            report_path = root_path + "/report"
-            report_path = os.path.join(report_path,response+".zip")
-            reportid:any
-            if(os.getenv("DB_TYPE") == "mongo"):
-                file = open(report_path,'rb')
-                with FileStoreDb.fs.new_file(_id=str(time.time()),filename=response.split('_')[0]+".zip",contentType="zip") as f:
-                    shutil.copyfileobj(file,f)
-                    reportid=f._id
-                    time.sleep(1)
-                file.close()
-            else:
-                file = open(report_path,'rb')
-                responses = requests.post(url =upload_file, files ={"file":(response.split('_')[0]+".zip", file)}, data ={"container_name":zip_container}).json()
-                reportid = responses["blob_name"]
-                file.close()
-
-            # # Reading BatchId from SecBatchDtlDb and storing in SecReportDb
-            secReportId = SecReport.create({'reportId':reportid,'batchId':payload["batchId"],'reportname':response.split('_')[0]})
+            log.info(f"\n{'='*80}\nbatchAttack() START - batchId: {payload['batchId']}, attack: {payload['modelUrl']}\n{'='*80}")
+            print(f"\n{'='*80}\nbatchAttack() START")
+            print(f"  BatchId: {payload['batchId']}")
+            print(f"  Attack: {payload['modelUrl']}")
+            print(f"{'='*80}\n")
             
-            shutil.rmtree(os.path.join(root_path + "/report",response))
-            UT.databaseDelete(report_path)
+            response = Infosys.setAttack({"batchId":payload["batchId"], "modelUrl":payload["modelUrl"]})
+            print(f"setAttack() returned: {response}")
+            log.info(f"setAttack() returned: {response}")
+            
+            if isinstance(response, dict) and "Job_Id" in response:
+                response = response["Job_Id"]
+            if not isinstance(response, str):
+                err = f"Invalid setAttack response type: {type(response).__name__}, value={response}"
+                print(f"✗ {err}")
+                log.error(err)
+                return {"ERROR": err}
 
-            del response,file
+            # If attack failed before report generation, create a debug report artifact.
+            if "_FAILED_" in response:
+                failed_folder = Bulk.sanitize_filenameorfoldername(f"{payload['modelUrl']}_FAILED_{str(payload['batchId']).replace('.', '_')}")
+                report_root = os.path.join(root_path, "report")
+                report_folder_path = os.path.join(report_root, failed_folder)
+                os.makedirs(report_folder_path, exist_ok=True)
+                error_text = response.split("_FAILED_", 1)[-1]
+                debug_html = (
+                    "<html><head><title>Security Attack Failure</title></head><body>"
+                    f"<h2>Attack failed: {payload['modelUrl']}</h2>"
+                    f"<p><b>BatchId:</b> {payload['batchId']}</p>"
+                    f"<p><b>Error:</b> {error_text}</p>"
+                    "<p>This debug report was generated to make failure details downloadable.</p>"
+                    "</body></html>"
+                )
+                with open(os.path.join(report_folder_path, "report.html"), "w") as dbg:
+                    dbg.write(debug_html)
+                response = failed_folder
+            
+            response = Bulk.sanitize_filenameorfoldername(response)
+            log.info(f"Sanitized response (folder name): {response}")
+            if not response:
+                err = f"sanitize_filenameorfoldername returned invalid value: {response}"
+                print(f"✗ {err}")
+                log.error(err)
+                return {"ERROR": err}
+            
+            # response is folder name only
+            report_path = root_path + "/report"
+            report_folder_path = os.path.join(report_path, response)
+            
+            log.info(f"Looking for report folder at: {report_folder_path}")
+            log.info(f"Report folder exists: {os.path.exists(report_folder_path)}")
+            
+            if os.path.exists(report_folder_path):
+                log.info(f"✓ Report folder found! Contents: {os.listdir(report_folder_path)}")
+                
+                # TEMP: Copy report to accessible location
+                temp_export_path = UT.getcurrentDirectory() + "/temp_reports"
+                if not os.path.exists(temp_export_path):
+                    os.makedirs(temp_export_path)
+                
+                temp_report_path = os.path.join(temp_export_path, response)
+                if os.path.exists(temp_report_path):
+                    shutil.rmtree(temp_report_path)
+                
+                shutil.copytree(report_folder_path, temp_report_path)
+                log.info(f"✓ Report copied to temp folder: {temp_report_path}")
+                log.info(f"  Report files: {os.listdir(temp_report_path)}")
+            else:
+                log.error(f"✗ Report folder NOT found at {report_folder_path}")
+                log.info(f"Available folders in {report_path}: {os.listdir(report_path)}")
+                return {"ERROR": f"Report folder not generated for {response}"}
+            
+            # TEMP: Also create ZIP for backward compatibility
+            report_zip_path = os.path.join(report_path, response + ".zip")
+            if not os.path.exists(report_zip_path):
+                # Ensure a zip exists even if attack report function skipped zip creation.
+                shutil.make_archive(report_folder_path, 'zip', os.path.dirname(report_folder_path), os.path.basename(report_folder_path))
+
+            reportid: any = None
+            file = None
+            if(os.getenv("DB_TYPE") == "mongo"):
+                if os.path.exists(report_zip_path):
+                    file = open(report_zip_path, 'rb')
+                    with FileStoreDb.fs.new_file(_id=str(time.time()), filename=response.split('_')[0]+".zip", contentType="zip") as f:
+                        shutil.copyfileobj(file, f)
+                        reportid = f._id
+                        time.sleep(1)
+                    file.close()
+                    log.info(f"✓ ZIP stored to MongoDB with ID: {reportid}")
+                else:
+                    log.error(f"✗ ZIP file not found at {report_zip_path}")
+                    return {"ERROR": f"ZIP file not generated for {response}"}
+            else:
+                if os.path.exists(report_zip_path):
+                    file = open(report_zip_path, 'rb')
+                    responses = requests.post(url=upload_file, files={"file": (response.split('_')[0]+".zip", file)}, data={"container_name": zip_container}).json()
+                    reportid = responses["blob_name"]
+                    file.close()
+                    log.info(f"✓ ZIP uploaded to Azure with blob name: {reportid}")
+                else:
+                    log.error(f"✗ ZIP file not found at {report_zip_path}")
+                    return {"ERROR": f"ZIP file not generated for {response}"}
+
+            if reportid is None:
+                return {"ERROR": "Failed to persist report zip"}
+
+            # Reading BatchId from SecBatchDtlDb and storing in SecReportDb
+            secReportId = SecReport.create({'reportId': reportid, 'batchId': payload["batchId"], 'reportname': response.split('_')[0]})
+            log.info(f"✓ SecReport created with ID: {secReportId}")
+            
+            # Keep report folder for inspection
+            # shutil.rmtree(os.path.join(root_path + "/report", response))
+            # UT.databaseDelete(report_zip_path)
+            
+            log.info(f"\n{'='*80}\nbatchAttack() COMPLETE\n{'='*80}\n")
+            del response
             return payload["batchId"]
         except Exception as exc:
+            log.error(f"✗ batchAttack() EXCEPTION: {type(exc).__name__}: {str(exc)}", exc_info=True)
             if(telemetry_flg == 'True'):
                 with con.ThreadPoolExecutor() as executor:
                     executor.submit(log.log_error_to_telemetry, "batchAttack", exc, apiEndPoint, errorRequestMethod)
@@ -437,24 +555,28 @@ class Bulk:
 
     def sanitize_filenameorfoldername(filename):
         try:
-            # Allow only alphanumeric characters, underscores, and hyphens
-            if not re.match(r'^[\w\-]+$', filename):
-                raise ValueError("Invalid filename: only alphanumeric characters, underscores, and hyphens are allowed.")
-            return filename
+            if filename is None:
+                filename = "generated_report"
+            # Keep only safe chars and collapse invalid separators.
+            sanitized = re.sub(r'[^\w\-]+', '_', str(filename)).strip('_')
+            if not sanitized:
+                sanitized = "generated_report"
+            return sanitized
         except Exception as exc:
             if(telemetry_flg == 'True'):
                 with con.ThreadPoolExecutor() as executor:
                     executor.submit(log.log_error_to_telemetry, "sanitize_filenameorfoldername", exc, apiEndPoint, errorRequestMethod) 
+            return "generated_report"
 
     def combinereport(payload):
 
         try:
             root_path = UT.getcurrentDirectory() + "/database"
+            os.makedirs(root_path, exist_ok=True)
             dirList = ["data","model","payload","report"]
             for dir in dirList:
                 dirs = root_path + "/" + dir
-                if not os.path.exists(dirs):
-                    os.mkdir(dirs)
+                os.makedirs(dirs, exist_ok=True)
 
             # Reading modelId, dataId, tenetId from Batch Table
             batchList = Batch.findall({'BatchId':payload['batchid']})[0]
@@ -638,17 +760,39 @@ class Bulk:
                 attributesData[attributes["ModelAttributeName"]] = value.ModelAttributeValues
             
             # Reading all attacks
-            attacks_fun_list = attributesData['appAttacks']
+            attacks_fun_list = attributesData.get('appAttacks', [])
+            print(f"runAllAttack batch={batchList['BatchId']} appAttacks raw type={type(attacks_fun_list).__name__} value={attacks_fun_list}")
+
+            if isinstance(attacks_fun_list, str):
+                parsed = attacks_fun_list
+                try:
+                    parsed = json.loads(attacks_fun_list)
+                except Exception:
+                    # Keep plain string fallback.
+                    pass
+                if isinstance(parsed, list):
+                    attacks_fun_list = parsed
+                elif isinstance(parsed, str) and parsed.strip():
+                    attacks_fun_list = [parsed.strip()]
+                else:
+                    attacks_fun_list = []
+
+            if not isinstance(attacks_fun_list, list):
+                attacks_fun_list = [attacks_fun_list]
+
+            print(f"runAllAttack normalized appAttacks={attacks_fun_list}")
 
             # Updating metadata Status of Batch Table
             Batch.update(batchList['BatchId'], {'Status':'InProgress...'})
 
             # Reading AttackName from AttackDb base on above requirements
             attackList = []
+            successful_attacks = 0
             for attack in attacks_fun_list:
                 try:
                     d = {}
                     Payload = {"batchId":batchList['BatchId'], "modelUrl":attack}
+                    print(f"runAllAttack executing attack={attack}")
                     log.info("-"*80)
                     log.info(f"Attack: {attack}")
                     start_time = time.perf_counter()
@@ -656,8 +800,15 @@ class Bulk:
                     end_time = time.perf_counter()
                     total_time = end_time - start_time
                     log.info("{:^20} {:^20} {:^20}".format("Start time", "End time", "Total time(sec)"))
-                    log.info("{:^20.2f} {:^20.2f} {:^20.2f}".format(start_time, end_time, total_time))
+                    log.info("{:^20.6f} {:^20.6f} {:^20.6f}".format(start_time, end_time, total_time))
+                    print(f"runAllAttack attack={attack} result={batchid} duration={total_time:.6f}s")
                     log.info("-"*80)
+
+                    if isinstance(batchid, dict) and (batchid.get("ERROR") or batchid.get("Oops! Something is Wrong With Input, Please Retry!")):
+                        print(f"runAllAttack attack={attack} failed with payload={batchid}")
+                        continue
+
+                    successful_attacks += 1
                     if attack in UT.AttackTypes['Art']['Evasion']:
                         d['type'] = 'Evasion'
                         d['name'] = attack
@@ -669,7 +820,12 @@ class Bulk:
                         d['name'] = attack
                     attackList.append(d)
                 except Exception as e:
+                    print(f"runAllAttack exception for attack={attack}: {e}")
                     log.info(e)
+
+            if successful_attacks == 0:
+                Batch.update(batchList['BatchId'], {'Status':'Failed'})
+                return {'runAllAttack': 'No attacks generated reports. Check security logs for batchAttack errors.'}
 
             # sorting attacks base on attack-type 
             attackList = sorted(attackList, key=lambda x: x['type'])

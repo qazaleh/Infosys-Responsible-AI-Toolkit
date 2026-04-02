@@ -81,33 +81,26 @@ export class MvpHomeComponent {
   private readonly remoteConfigHostKeywords: string[] = ['rai-toolkit-dev.az.ad.idemo-ppc.com'];
 
   apiConfig: ApiConfig = this.fallbackApiConfig;
-  datasetOptions: DatasetOption[] = [
-    {
-      label: 'Loan-Insurance Baseline Classifier_998d715d',
-      datasetName: 'Loan-Insurance Baseline Classifier_998d715d',
-      datasetFileName: 'Loan-Insurance Baseline Classifier_998d715d.csv',
-      datasetAssetPath: '/assets/mvp-evaluation-artifacts/Loan-Insurance Baseline Classifier_998d715d.csv',
-      modelName: 'Loan-Insurance Baseline Classifier_998d715d',
-      modelFileName: 'Loan-Insurance Baseline Classifier_998d715d.joblib',
-      modelAssetPath:
-        '/assets/mvp-evaluation-artifacts/Loan-Insurance Baseline Classifier_998d715d.joblib',
-      taskType: 'CLASSIFICATION',
-      targetDataType: 'Tabular',
-      targetClassifier: 'SklearnClassifier',
-    },
-  ];
+  datasetOptions: DatasetOption[] = [];
   evaluationOptions: string[] = ['Explainability', 'Fairness', 'Robustness'];
 
   selectedDataset = '';
   selectedModel = '';
   selectedEvaluations: string[] = [];
+  uploadedDatasetFile: File | null = null;
+  uploadedModelFile: File | null = null;
+  uploadedDatasetName = '';
+  uploadedModelName = '';
+  uploadedTaskType = 'CLASSIFICATION';
+  uploadedTargetDataType = 'Tabular';
+  uploadedTargetClassifier = 'LogisticRegression';
 
   explainSampleLimit = 3;
   showExplainPreview = false;
   includeGlobalKernelExplainer = false;
 
   fairnessBiasType = 'PRETRAIN';
-  fairnessMethodType = 'Generic';
+  fairnessMethodType = 'ALL';
   fairnessTaskType = 'CLASSIFICATION';
   fairnessLabel = '';
   fairnessFavorableOutcome = '1';
@@ -115,14 +108,18 @@ export class MvpHomeComponent {
   fairnessPrivilegedGroupsInput = '';
   fairnessMitigationType = 'AUDIT';
   fairnessMitigationTechnique = '';
-  fairnessPredLabel = '';
-  fairnessSensitiveFeaturesInput = '';
-  fairnessFavourableLabel = '1';
-  fairnessKnn = 5;
 
-  robustnessAttackOptions: string[] = [];
-  selectedRobustnessAttacks: string[] = [];
-  manualRobustnessAttacks = '';
+  robustnessAttackOptions: string[] = [
+    'FGSM',
+    'PGD',
+    'DeepFool',
+    'Carlini & Wagner',
+    'AutoAttack',
+    'BIM',
+    'JSMA',
+    'One Pixel Attack'
+  ];
+  selectedRobustnessAttacks: string[] = ['ProjectedGradientDescentTabular']; // HARDCODED FOR DEBUG - Remove attack list UI dropdown
 
   datasetColumns: string[] = [];
 
@@ -151,7 +148,7 @@ export class MvpHomeComponent {
     if (this.evaluationInProgress) {
       return false;
     }
-    return Boolean(this.selectedDataset) && this.selectedEvaluations.length > 0;
+    return Boolean(this.uploadedDatasetFile && this.uploadedModelFile) && this.selectedEvaluations.length > 0;
   }
 
   get isExplainabilitySelected(): boolean {
@@ -180,6 +177,36 @@ export class MvpHomeComponent {
     return !this.evaluationInProgress && this.availableDownloadTenets.length > 1;
   }
 
+  onDatasetFileSelected(event: Event): void {
+    const inputElement = event.target as HTMLInputElement;
+    const selectedFile = inputElement?.files?.[0] || null;
+    this.uploadedDatasetFile = selectedFile;
+    if (selectedFile && !this.uploadedDatasetName.trim()) {
+      this.uploadedDatasetName = this.stripExtension(selectedFile.name);
+    }
+    this.resetEvaluationState();
+    this.datasetColumns = [];
+    void this.loadDatasetColumnsForUploadedFile();
+    void this.refreshRobustnessAttackOptions();
+  }
+
+  onModelFileSelected(event: Event): void {
+    const inputElement = event.target as HTMLInputElement;
+    const selectedFile = inputElement?.files?.[0] || null;
+    this.uploadedModelFile = selectedFile;
+    this.selectedModel = selectedFile?.name || '';
+    if (selectedFile && !this.uploadedModelName.trim()) {
+      this.uploadedModelName = this.stripExtension(selectedFile.name);
+    }
+    this.resetEvaluationState();
+    void this.refreshRobustnessAttackOptions();
+  }
+
+  onUploadedMetaChange(): void {
+    this.resetEvaluationState();
+    void this.refreshRobustnessAttackOptions();
+  }
+
   onDatasetChange(datasetLabel: string): void {
     const selectedDatasetOption = this.datasetOptions.find(
       (datasetOption) => datasetOption.label === datasetLabel
@@ -193,6 +220,9 @@ export class MvpHomeComponent {
   onEvaluationToggle(evaluationType: string, isChecked: boolean): void {
     if (isChecked && !this.selectedEvaluations.includes(evaluationType)) {
       this.selectedEvaluations = [...this.selectedEvaluations, evaluationType];
+      if (evaluationType === 'Robustness') {
+        void this.refreshRobustnessAttackOptions();
+      }
       return;
     }
 
@@ -215,16 +245,16 @@ export class MvpHomeComponent {
     }
   }
 
+
+
   async onEvaluateModel(): Promise<void> {
     if (!this.canEvaluate) {
       return;
     }
 
-    const selectedDatasetOption = this.datasetOptions.find(
-      (datasetOption) => datasetOption.label === this.selectedDataset
-    );
+    const selectedDatasetOption = this.buildUploadedDatasetOption();
     if (!selectedDatasetOption) {
-      this.evaluationError = 'Dataset configuration was not found.';
+      this.evaluationError = 'Upload both dataset and model files before evaluation.';
       return;
     }
 
@@ -248,16 +278,11 @@ export class MvpHomeComponent {
 
     try {
       const userId = this.getLoggedInUser();
-      const datasetFile = await this.fetchAssetFile(
-        selectedDatasetOption.datasetAssetPath,
-        selectedDatasetOption.datasetFileName,
-        'text/csv'
-      );
-      const modelFile = await this.fetchAssetFile(
-        selectedDatasetOption.modelAssetPath,
-        selectedDatasetOption.modelFileName,
-        'application/octet-stream'
-      );
+      const datasetFile = this.uploadedDatasetFile;
+      const modelFile = this.uploadedModelFile;
+      if (!datasetFile || !modelFile) {
+        throw new Error('Upload both dataset and model files before evaluation.');
+      }
       const detectedTargetLabel = await this.detectTargetLabel(datasetFile);
       if (!this.fairnessLabel.trim()) {
         this.fairnessLabel = detectedTargetLabel;
@@ -555,11 +580,7 @@ export class MvpHomeComponent {
       protectedAttribute: protectedAttributes,
       privilegedGroup: normalizedPrivilegedGroups,
       mitigationType: this.fairnessMitigationType,
-      mitigationTechnique: this.fairnessMitigationTechnique.trim(),
-      predLabel: this.fairnessPredLabel.trim() || null,
-      knn: Number(this.fairnessKnn || 5),
-      sensitiveFeatures: this.splitCsvInput(this.fairnessSensitiveFeaturesInput),
-      favourableLabel: this.fairnessFavourableLabel.trim() || null,
+      mitigationTechnique: this.fairnessMitigationTechnique,
     };
 
     const batchGenerationResponse: any = await firstValueFrom(
@@ -596,9 +617,10 @@ export class MvpHomeComponent {
     this.currentStepMessage = 'Generating robustness batch...';
     this.setTenetStatus('Robustness', 'running', 'Preparing robustness payload...');
 
-    const selectedAttacks = this.selectedRobustnessAttacks.length
-      ? this.selectedRobustnessAttacks
-      : this.splitCsvInput(this.manualRobustnessAttacks);
+    const effectiveAttacks =
+      this.selectedRobustnessAttacks && this.selectedRobustnessAttacks.length > 0
+        ? this.selectedRobustnessAttacks
+        : ['ProjectedGradientDescentTabular'];
 
     const robustnessPayload: any = {
       userId,
@@ -606,7 +628,7 @@ export class MvpHomeComponent {
       modelId,
       dataId: datasetId,
       tenetName: ['Security'],
-      appAttacks: selectedAttacks.length > 0 ? selectedAttacks : null,
+      appAttacks: effectiveAttacks,
     };
 
     const batchGenerationResponse: any = await firstValueFrom(
@@ -1194,7 +1216,7 @@ export class MvpHomeComponent {
     selectedDatasetOption?: DatasetOption
   ): Promise<void> {
     if (!selectedDatasetOption) {
-      this.datasetColumns = [];
+      await this.loadDatasetColumnsForUploadedFile();
       return;
     }
 
@@ -1215,9 +1237,25 @@ export class MvpHomeComponent {
     }
   }
 
+  private async loadDatasetColumnsForUploadedFile(): Promise<void> {
+    if (!this.uploadedDatasetFile) {
+      this.datasetColumns = [];
+      return;
+    }
+
+    try {
+      const csvHeaderSample = await this.uploadedDatasetFile.slice(0, 8192).text();
+      this.datasetColumns = this.extractCsvColumns(csvHeaderSample);
+      if (!this.fairnessProtectedAttributesInput && this.datasetColumns.length > 1) {
+        const suggested = this.datasetColumns.find((columnName) => columnName !== this.fairnessLabel);
+        this.fairnessProtectedAttributesInput = suggested || '';
+      }
+    } catch (_error) {
+      this.datasetColumns = [];
+    }
+  }
+
   private async loadRobustnessAttackOptions(selectedDatasetOption?: DatasetOption): Promise<void> {
-    this.robustnessAttackOptions = [];
-    this.selectedRobustnessAttacks = [];
     if (!selectedDatasetOption) {
       return;
     }
@@ -1231,10 +1269,78 @@ export class MvpHomeComponent {
         this.http.post(this.apiConfig.securityApplicableAttacks, requestPayload)
       );
       const extractedAttacks = this.extractAttackNames(attacksResponse);
-      this.robustnessAttackOptions = extractedAttacks;
+      // Merge with defaults - prioritize API-provided attacks
+      if (extractedAttacks.length > 0) {
+        this.robustnessAttackOptions = extractedAttacks;
+        if (this.selectedRobustnessAttacks.length === 0) {
+          this.selectedRobustnessAttacks = [extractedAttacks[0]];
+        }
+      } else if (this.selectedRobustnessAttacks.length === 0) {
+        this.selectedRobustnessAttacks = ['ProjectedGradientDescentTabular'];
+      }
     } catch (_error) {
-      this.robustnessAttackOptions = [];
+      // Keep defaults on error
+      if (this.selectedRobustnessAttacks.length === 0) {
+        this.selectedRobustnessAttacks = ['ProjectedGradientDescentTabular'];
+      }
     }
+  }
+
+  private async refreshRobustnessAttackOptions(): Promise<void> {
+    const selectedDatasetOption = this.buildUploadedDatasetOption();
+    await this.loadRobustnessAttackOptions(selectedDatasetOption || undefined);
+  }
+
+  private buildUploadedDatasetOption(): DatasetOption | null {
+    if (!this.uploadedDatasetFile || !this.uploadedModelFile) {
+      return null;
+    }
+
+    const datasetFileName = this.uploadedDatasetFile.name;
+    const modelFileName = this.uploadedModelFile.name;
+    const datasetName = this.uploadedDatasetName.trim() || this.stripExtension(datasetFileName);
+    const modelName = this.uploadedModelName.trim() || this.stripExtension(modelFileName);
+
+    return {
+      label: `${datasetName}::${modelName}`,
+      datasetName,
+      datasetFileName,
+      datasetAssetPath: '',
+      modelName,
+      modelFileName,
+      modelAssetPath: '',
+      taskType: this.uploadedTaskType,
+      targetDataType: this.uploadedTargetDataType,
+      targetClassifier: this.resolveTargetClassifier(this.uploadedTargetClassifier),
+    };
+  }
+
+  private resolveTargetClassifier(rawClassifier: string): string {
+    const normalized = String(rawClassifier || '').trim();
+    if (!normalized) {
+      return 'SklearnClassifier';
+    }
+
+    const upperValue = normalized.toUpperCase();
+    const supportedClassifierIds = new Set([
+      'SKLEARNCLASSIFIER',
+      'TENSORFLOWCLASSIFIER',
+      'PYTORCHFASTERRCNN',
+      'PYTORCHCLASSIFIER',
+      'XGBOOSTCLASSIFIER',
+      'CATBOOSTCLASSIFIER',
+    ]);
+
+    if (supportedClassifierIds.has(upperValue)) {
+      return normalized;
+    }
+
+    // Map common scikit-learn algorithm names to the workbench/security classifier id.
+    return 'SklearnClassifier';
+  }
+
+  private stripExtension(fileName: string): string {
+    return String(fileName || '').replace(/\.[^.]+$/, '');
   }
 
   private extractAttackNames(payload: any): string[] {
@@ -1398,12 +1504,91 @@ export class MvpHomeComponent {
   }
 
   private resolveErrorMessage(error: any, fallbackMessage = 'Evaluation failed.'): string {
-    return (
-      error?.error?.detail ||
-      error?.error?.message ||
-      error?.message ||
-      fallbackMessage
-    );
+    const statusCode = Number(error?.status);
+    const statusText = String(error?.statusText || '').trim();
+    const requestUrl = String(error?.url || '').trim();
+    const serviceLabel = this.getServiceLabelFromUrl(requestUrl);
+
+    // Angular network/CORS failures often surface as ProgressEvent { isTrusted: true } with status 0.
+    if (
+      statusCode === 0 ||
+      (error?.error && typeof error.error === 'object' && (error.error as any).isTrusted === true)
+    ) {
+      const endpointLabel = requestUrl || this.apiConfig.securityReport;
+      return `Network error while contacting ${serviceLabel} (${endpointLabel}). Verify the corresponding service container is running and reachable.`;
+    }
+
+    const candidates = [
+      error?.error?.detail,
+      error?.error?.message,
+      error?.error?.errors,
+      error?.error?.non_field_errors,
+      error?.error,
+      error?.message,
+      statusText,
+      error,
+    ];
+
+    for (const candidate of candidates) {
+      const parsed = this.stringifyErrorCandidate(candidate);
+      if (parsed) {
+        return parsed;
+      }
+    }
+
+    return fallbackMessage;
+  }
+
+  private getServiceLabelFromUrl(requestUrl: string): string {
+    const normalizedUrl = (requestUrl || '').toLowerCase();
+    if (normalizedUrl.includes('/fairness/')) {
+      return 'fairness service';
+    }
+    if (normalizedUrl.includes('/security/')) {
+      return 'security service';
+    }
+    if (normalizedUrl.includes('/explainability/')) {
+      return 'explainability service';
+    }
+    return 'evaluation service';
+  }
+
+  private stringifyErrorCandidate(candidate: any): string {
+    if (candidate === null || candidate === undefined) {
+      return '';
+    }
+
+    if (typeof candidate === 'string') {
+      const trimmed = candidate.trim();
+      return trimmed && trimmed !== '[object Object]' ? trimmed : '';
+    }
+
+    if (Array.isArray(candidate)) {
+      const values = candidate
+        .map((item) => this.stringifyErrorCandidate(item))
+        .filter((item) => item.length > 0);
+      return values.join(' | ');
+    }
+
+    if (typeof candidate === 'object') {
+      const objectCandidate = candidate as Record<string, any>;
+      const preferredKeys = ['detail', 'message', 'error', 'msg', 'title'];
+      for (const key of preferredKeys) {
+        const parsed = this.stringifyErrorCandidate(objectCandidate[key]);
+        if (parsed) {
+          return parsed;
+        }
+      }
+
+      try {
+        const serialized = JSON.stringify(candidate);
+        return serialized && serialized !== '{}' ? serialized : '';
+      } catch (_error) {
+        return '';
+      }
+    }
+
+    return String(candidate);
   }
 
   private resetEvaluationState(): void {

@@ -22,6 +22,5 @@ diffusers==0.27.2
 accelerate==0.28.0
 setuptools
 fastapi
-lib/privacy-2.0.8-py3-none-any.whl
 #lib/en_core_web_lg-3.5.0-py3-none-any.whl
 nltk==3.9.1

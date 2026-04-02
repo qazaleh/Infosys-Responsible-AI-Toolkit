@@ -55,7 +55,63 @@ from src.dao.Security.SecReportDb import SecReport
 #from tensorflow.keras.preprocessing import image
 from art.estimators.classification import SklearnClassifier
 from art.attacks.poisoning.poisoning_attack_svm import PoisoningAttackSVM
-from art.estimators.classification.scikitlearn import SklearnAPIClassifier
+try:
+    from art.estimators.classification.scikitlearn import SklearnAPIClassifier
+except ImportError:
+    from art.estimators.classification import BlackBoxClassifier
+
+    class SklearnAPIClassifier(BlackBoxClassifier):
+        """Compatibility shim for ART versions where SklearnAPIClassifier is unavailable."""
+
+        def __init__(
+            self,
+            api,
+            nb_classes,
+            input_shape,
+            api_data_variable,
+            api_response_variable,
+        ):
+            def predict_fn(samples):
+                payload_samples = np.asarray(samples)
+                if payload_samples.ndim == 1:
+                    payload_samples = payload_samples.reshape(1, -1)
+
+                headers = {'Content-Type': 'application/json'}
+                request_body = json.dumps({api_data_variable: payload_samples.tolist()})
+                response = requests.post(api, request_body, headers=headers, timeout=30)
+                response.raise_for_status()
+
+                response_payload = json.loads(response.text)
+                predictions = np.asarray(response_payload.get(api_response_variable, []))
+
+                if predictions.ndim == 0:
+                    predictions = predictions.reshape(1)
+
+                if predictions.ndim == 1:
+                    # Convert label predictions to one-hot scores expected by ART attacks.
+                    if predictions.dtype.kind in 'iufb':
+                        class_indices = predictions.astype(int)
+                    else:
+                        known_values = sorted(set(predictions.tolist()))
+                        class_map = {value: index for index, value in enumerate(known_values)}
+                        class_indices = np.array(
+                            [class_map.get(value, 0) for value in predictions],
+                            dtype=int,
+                        )
+
+                    class_indices = np.clip(class_indices, 0, int(nb_classes) - 1)
+                    one_hot_scores = np.zeros((len(class_indices), int(nb_classes)), dtype=np.float32)
+                    one_hot_scores[np.arange(len(class_indices)), class_indices] = 1.0
+                    return one_hot_scores
+
+                return predictions.astype(np.float32)
+
+            super().__init__(
+                predict_fn=predict_fn,
+                input_shape=tuple(input_shape),
+                nb_classes=int(nb_classes),
+            )
+
 import concurrent.futures as con
 from src.config.logger import CustomLogger
 
@@ -265,9 +321,11 @@ class Utility:
             else:
                 return modelName
         except Exception as e:
+            log.error(f"readModelFile FAILED: {type(e).__name__}: {str(e)}", exc_info=True)
             if(telemetry_flg == 'True'):
                 with con.ThreadPoolExecutor() as executor:
                     executor.submit(log.log_error_to_telemetry, "readModelFile", e, apiEndPoint, errorRequestMethod)
+            raise
     
 
     def extractCSVFromZip(cache_path, data_path):
@@ -328,20 +386,22 @@ class Utility:
 
         try:
             root_path = os.getcwd()
-            root_path = Utility.getcurrentDirectory() + "/database"
+            current_dir = Utility.getcurrentDirectory() or os.getcwd()
+            root_path = os.path.join(current_dir, "database")
+            os.makedirs(root_path, exist_ok=True)
             dirList = ["cacheMemory","data","model","payload","report"]
             for dir in dirList:
-                dirs = root_path + "/" + dir
-                if not os.path.exists(dirs):
-                    os.mkdir(dirs)
+                dirs = os.path.join(root_path, dir)
+                os.makedirs(dirs, exist_ok=True)
 
             # Reading modelId from Batch Table
             batchList = Batch.findall({'BatchId':payload['BatchId']})[0]
             dataList = Data.findall({'DataId':batchList['DataId']})[0]
             modelList = Model.findall({'ModelId':batchList['ModelId']})[0]
-            datasetName = modelList['ModelName'] 
-
+            datasetName = modelList.get('ModelName')
             datasetName = Utility.sanitize_filenameorfoldername(datasetName)
+            if not datasetName:
+                datasetName = f"dataset_{str(payload['BatchId']).replace('.', '_')}"
             
             #  Reading Data file content from MongoDB and stroing in Database Folder.
             sampleDataId = dataList['SampleData']
@@ -349,7 +409,8 @@ class Utility:
                 dataFile = FileStoreDb.fs.get(sampleDataId)
                 # dataContent = FileStoreDb.findOne(dataList['SampleData'])
                 dataF = dataFile.read()
-                dataFileType = dataFile.filename.split('.')[-1]
+                dataFileName = dataFile.filename or "input.csv"
+                dataFileType = dataFileName.split('.')[-1] if '.' in dataFileName else "csv"
             else: 
                 dataFile =requests.get(url =fetch_file, params ={"container_name":dataset_container,"blob_name":dataList['SampleData']})
                 binary_data = dataFile.content
@@ -357,11 +418,17 @@ class Utility:
                 dataF = temp.read()
 
                 content_disposition = dataFile.headers.get('content-disposition')
-                dataFileType = content_disposition.split(';')[1].split('=')[1].split('.')[-1]             
+                if content_disposition and '.' in content_disposition:
+                    dataFileType = content_disposition.split(';')[1].split('=')[1].split('.')[-1]
+                else:
+                    dataFileType = "csv"
+
+            if not dataFileType:
+                dataFileType = "csv"
             
-            data_path = root_path + "/data"
+            data_path = os.path.join(root_path, "data")
             # data_path = os.path.join(data_path,datasetName + '.' + dataFileType)
-            cache_path = root_path + "/cacheMemory"
+            cache_path = os.path.join(root_path, "cacheMemory")
             # cache_path = os.path.join(cache_path, dataContent["fileName"]) 
             cache_path = os.path.join(cache_path,datasetName + '.' + dataFileType)
             # print('run1',data_path)
@@ -443,9 +510,11 @@ class Utility:
             del batchList,dataList,modelList,dataF
             return raw_data, data_path
         except Exception as e:
+            log.error(f"readDataFile FAILED: {type(e).__name__}: {str(e)}", exc_info=True)
             if(telemetry_flg == 'True'):
                 with con.ThreadPoolExecutor() as executor:
                     executor.submit(log.log_error_to_telemetry, "readDataFile", e, apiEndPoint, errorRequestMethod)
+            raise
         
 
     def updateGroundTruthLabelId(dataid,groundtruthID,groundtruthlabel):
@@ -4740,23 +4809,31 @@ class Utility:
         try:
             root_path = os.getcwd()
             directories = root_path.split(os.path.sep)
-            srcFlag = False
+            app_index = -1
 
-            for i in range(len(directories)-1, -1, -1):
+            # Use the last "app" segment to avoid returning an empty root path.
+            for i in range(len(directories) - 1, -1, -1):
                 if directories[i] == 'app':
-                    srcFlag = True
+                    app_index = i
                     break
-            if srcFlag == True:
-                src_index = directories.index("app")
-                new_path = os.path.sep.join(directories[:src_index])
+
+            if app_index >= 0:
+                new_path = os.path.sep.join(directories[: app_index + 1])
+                if not new_path:
+                    new_path = os.getcwd()
             else:
                 new_path = os.getcwd()
 
             return new_path
         except Exception as e:
+            try:
+                print(f"getcurrentDirectory FAILED: {type(e).__name__}: {str(e)}")
+            except Exception:
+                pass
             if(telemetry_flg == 'True'):
                 with con.ThreadPoolExecutor() as executor:
                     executor.submit(log.log_error_to_telemetry, "getcurrentDirectory", e, apiEndPoint, errorRequestMethod)
+            return os.getcwd()
 
 
     def isContentSafe(payload):

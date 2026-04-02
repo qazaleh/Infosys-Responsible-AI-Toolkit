@@ -28,11 +28,29 @@ from fairness.routing.fairness_router import llm_router,standalone_apis_router, 
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from fairness.exception.custom_exception import RegisterExceptions
+import json
 
 log=CustomLogger()
 
-allow_methods = os.getenv("allow_methods")
-allow_origins = os.getenv("allow_origin")
+def _parse_cors_list(raw_value, default_value):
+    if not raw_value:
+        return default_value
+
+    if isinstance(raw_value, list):
+        return raw_value
+
+    try:
+        parsed_value = json.loads(raw_value)
+        if isinstance(parsed_value, list):
+            return parsed_value
+    except Exception:
+        pass
+
+    return [item.strip() for item in str(raw_value).split(",") if item.strip()]
+
+
+allow_methods = _parse_cors_list(os.getenv("allow_methods"), ["GET", "POST", "OPTIONS", "HEAD"])
+allow_origins = _parse_cors_list(os.getenv("allow_origin"), ["*"])
 content_security_policy = os.getenv("content_security_policy")
 cache_control = os.getenv("cache_control")
 XSS_header = os.getenv("XSS_header")

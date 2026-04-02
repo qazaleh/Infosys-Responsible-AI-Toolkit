@@ -11,7 +11,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 
 import os
-import os
 import zipfile
 import pdfkit
 #import logging as log
@@ -57,7 +56,6 @@ class Utility:
                             # 'header-html':'water.html'
                         }
                         pdfkit.from_file(html_path, output_path=pdf_path, options=option)
-                        os.remove(html_path)
 
                         # create watermark.pdf file
                         watermark_path = os.path.join(payload['data_path'], 'watermark.pdf')
@@ -72,8 +70,8 @@ class Utility:
                         c.save()
 
                         # adding watermark in each page of report.pdf file
-                        combine_pdf = os.path.join(payload['data_path'], 'report.pdf')
-                        modify_pdf = os.path.join(payload['data_path'], 'report.pdf')
+                        combine_pdf = pdf_path
+                        modify_pdf = pdf_path
 
                         with open(combine_pdf, 'rb') as pdf_file, open(watermark_path, 'rb') as watermark_file:
                             pdf_reader = PdfReader(pdf_file)
@@ -89,6 +87,7 @@ class Utility:
                             with open(modify_pdf, 'wb') as out_file:
                                 pdf_writer.write(out_file)
                         os.remove(watermark_path)
+                        os.remove(html_path)
 
                         with zipfile.ZipFile(payload['report_path'], 'a') as update_zip:
                             update_zip.write(pdf_path, arcname=file_info.filename.split('.')[0]+'.pdf')
@@ -96,7 +95,6 @@ class Utility:
 
             return 
         
-        except Exception :
-            # Log the detailed error for debugging purposes
-            log.error("An error occurred during frame processing.")
-            # print(e)
+        except Exception as exc:
+            log.error(f"An error occurred during frame processing: {str(exc)}", exc_info=True)
+            raise

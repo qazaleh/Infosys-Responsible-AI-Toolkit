@@ -347,6 +347,7 @@ services:
       Pragma: "no-cache"
       ACCESS_KEY: ABC
       SECRET_KEY: XYZ
+      REPORT_URL: http://reporting-tool/v1/report/htmltopdfconversion
     volumes:
       - ./responsible-ai-fairness/responsible-ai-fairness:/app
     ports:
@@ -455,7 +456,7 @@ services:
       DB_TYPE: mongo
       DB_NAME: rai_repository
       MONGO_PATH: mongodb://mongo:27017/
-      ALLOWED_ORIGINS: '["*"]'
+      ALLOW_ORIGINS: "*"
     volumes:
       - ./responsible-ai-security/wrapper:/app
     ports:
@@ -471,9 +472,20 @@ services:
       context: ./responsible-ai-moderationlayer
       dockerfile: Dockerfile
       cache_from: ["type=registry,ref=responsible-ai-moderationlayer:latest"]
+    depends_on:
+      mongo:
+        condition: service_healthy
+      moderationmodel:
+        condition: service_started
     working_dir: /app/src
     command: ["python3", "main.py"]
     environment:
+      DBTYPE: mongo
+      APP_MONGO_DBNAME: rai_repository
+      MONGO_PATH: mongodb://mongo:27017/
+      VERIFY_SSL: "False"
+      CACHE_TTL: "300"
+      CACHE_SIZE: "1000"
       PORT: "8000"
       THREADS: "6"
       CONNECTION_LIMIT: "500"

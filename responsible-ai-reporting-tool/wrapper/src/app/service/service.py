@@ -13,11 +13,11 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 import os
 import shutil
 import zipfile
-import shutil
 import time
 from datetime import datetime
 import requests
 import io
+from io import BytesIO
 from app.config.logger import CustomLogger
 
 from app.service.utility import Utility as UT
@@ -150,7 +150,7 @@ class InfosysRAI:
                 f.write(data)
             
             # converting html file into pdf
-            UT.htmlToPdfWithWatermark({'report_path':report_path, 'data_path':data_path})
+            UT.htmlToPdfWithWatermark({'report_path': report_path, 'data_path': data_path})
             
             # modified zip file after removing html file
             temp_zip_path = report_path.replace('.zip','_temp.zip') 
@@ -323,9 +323,15 @@ class InfosysRAI:
                 # Cleanup: remove the temporary directory
                 shutil.rmtree('temp')
             else:
-                report_file_id = FileStoreDb.save_file(file=pdf_content, tenet_id=tenet_id, content_type='application/pdf')
-                report_name = 'report.pdf'
-                content_type = 'application/pdf'
+                zip_buffer = BytesIO()
+                source_html_name = report_name if report_name.endswith('.html') else 'source_report.html'
+                with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                    zipf.writestr(source_html_name, html_content.encode('utf-8'))
+                    zipf.writestr('report.pdf', pdf_content)
+                zip_buffer.seek(0)
+                report_file_id = FileStoreDb.save_file(file=zip_buffer.getvalue(), tenet_id=tenet_id, content_type='application/zip')
+                report_name = 'report.zip'
+                content_type = 'application/zip'
             # Save data to DB
             report_id = time.time()
             

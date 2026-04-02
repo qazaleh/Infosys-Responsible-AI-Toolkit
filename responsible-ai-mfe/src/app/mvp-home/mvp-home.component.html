@@ -9,18 +9,82 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     <p class="eyebrow">MVP Evaluation</p>
     <h1>Trust AI</h1>
 
-    <label class="section-label" for="dataset-select">Please select your dataset</label>
-    <select
-      id="dataset-select"
-      class="dataset-select"
-      [(ngModel)]="selectedDataset"
-      (ngModelChange)="onDatasetChange($event)"
-    >
-      <option value="" disabled>Select dataset</option>
-      <option *ngFor="let dataset of datasetOptions" [value]="dataset.label">
-        {{ dataset.label }}
-      </option>
-    </select>
+    <p class="section-label">Upload your dataset and model</p>
+    <section class="setup-panel">
+      <div class="form-grid compact">
+        <label class="full-width">
+          <span>Dataset File (.csv)</span>
+          <input
+            class="compact-input"
+            type="file"
+            accept=".csv,text/csv"
+            (change)="onDatasetFileSelected($event)"
+          />
+        </label>
+        <label>
+          <span>Dataset Name (optional)</span>
+          <input
+            class="compact-input"
+            type="text"
+            [(ngModel)]="uploadedDatasetName"
+            (ngModelChange)="onUploadedMetaChange()"
+            placeholder="Defaults to file name"
+          />
+        </label>
+
+        <label class="full-width">
+          <span>Model File (.joblib/.pkl)</span>
+          <input
+            class="compact-input"
+            type="file"
+            accept=".joblib,.pkl,application/octet-stream"
+            (change)="onModelFileSelected($event)"
+          />
+        </label>
+        <label>
+          <span>Model Name (optional)</span>
+          <input
+            class="compact-input"
+            type="text"
+            [(ngModel)]="uploadedModelName"
+            (ngModelChange)="onUploadedMetaChange()"
+            placeholder="Defaults to file name"
+          />
+        </label>
+
+        <label>
+          <span>Task Type</span>
+          <select
+            class="compact-input"
+            [(ngModel)]="uploadedTaskType"
+            (ngModelChange)="onUploadedMetaChange()"
+          >
+            <option value="CLASSIFICATION">CLASSIFICATION</option>
+          </select>
+        </label>
+        <label>
+          <span>Target Data Type</span>
+          <select
+            class="compact-input"
+            [(ngModel)]="uploadedTargetDataType"
+            (ngModelChange)="onUploadedMetaChange()"
+          >
+            <option value="Tabular">Tabular</option>
+          </select>
+        </label>
+        <label>
+          <span>Target Classifier</span>
+          <input
+            class="compact-input"
+            type="text"
+            [(ngModel)]="uploadedTargetClassifier"
+            (ngModelChange)="onUploadedMetaChange()"
+            placeholder="Example: LogisticRegression"
+          />
+        </label>
+      </div>
+      <p class="hint-line">Model and dataset names can be different.</p>
+    </section>
 
     <p class="section-label">How you want to evaluate your model?</p>
     <div class="evaluation-list" role="group" aria-label="Evaluation types">
@@ -50,10 +114,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
           max="25"
           [(ngModel)]="explainSampleLimit"
         />
-        <label class="inline-toggle">
-          <input type="checkbox" [(ngModel)]="includeGlobalKernelExplainer" />
-          <span>Include global kernel explainer (slower)</span>
-        </label>
       </div>
       <p class="hint-line">Default runs report only (faster and more stable).</p>
     </section>
@@ -93,8 +153,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
         <label>
           <span>Method Type</span>
           <select [(ngModel)]="fairnessMethodType" class="compact-input">
-            <option value="Generic">Generic</option>
-            <option value="Decisive">Decisive</option>
+            <option value="ALL">ALL (All Metrics)</option>
           </select>
         </label>
         <label>
@@ -103,68 +162,13 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
             <option value="CLASSIFICATION">CLASSIFICATION</option>
           </select>
         </label>
-        <label>
-          <span>Label</span>
-          <input class="compact-input" type="text" [(ngModel)]="fairnessLabel" />
-        </label>
-        <label>
-          <span>Favorable Outcome</span>
-          <input class="compact-input" type="text" [(ngModel)]="fairnessFavorableOutcome" />
-        </label>
-        <label>
-          <span>Mitigation Type</span>
-          <select [(ngModel)]="fairnessMitigationType" class="compact-input">
-            <option value="AUDIT">AUDIT</option>
-            <option value="PREPROCESSING">PREPROCESSING</option>
-            <option value="INPROCESSING">INPROCESSING</option>
-          </select>
-        </label>
-        <label>
-          <span>kNN</span>
-          <input class="compact-input" type="number" min="1" [(ngModel)]="fairnessKnn" />
-        </label>
-        <label>
-          <span>Prediction Label</span>
-          <input class="compact-input" type="text" [(ngModel)]="fairnessPredLabel" />
-        </label>
-        <label>
-          <span>Favourable Label</span>
-          <input class="compact-input" type="text" [(ngModel)]="fairnessFavourableLabel" />
-        </label>
-        <label class="full-width">
-          <span>Protected Attributes (comma separated)</span>
-          <input
-            class="compact-input"
-            type="text"
-            [(ngModel)]="fairnessProtectedAttributesInput"
-            placeholder="Example: CODE_GENDER,NAME_CONTRACT_TYPE"
-          />
-        </label>
         <label class="full-width">
           <span>Privileged Groups (group1;group2 format)</span>
           <input
             class="compact-input"
             type="text"
             [(ngModel)]="fairnessPrivilegedGroupsInput"
-            placeholder="Example: M;Cash loans"
-          />
-        </label>
-        <label class="full-width">
-          <span>Sensitive Features (comma separated)</span>
-          <input
-            class="compact-input"
-            type="text"
-            [(ngModel)]="fairnessSensitiveFeaturesInput"
-            placeholder="Example: CODE_GENDER"
-          />
-        </label>
-        <label class="full-width">
-          <span>Mitigation Technique</span>
-          <input
-            class="compact-input"
-            type="text"
-            [(ngModel)]="fairnessMitigationTechnique"
-            placeholder="Optional"
+            placeholder="Example: M;Cash loans (comma separated for multiple attributes)"
           />
         </label>
         </div>
@@ -173,28 +177,20 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
     <section class="setup-panel" *ngIf="isRobustnessSelected">
       <h3>Robustness Setup</h3>
-      <label class="full-width">
-        <span>Manual attacks (comma separated)</span>
-        <input
-          class="compact-input"
-          type="text"
-          [(ngModel)]="manualRobustnessAttacks"
-          placeholder="Optional: FGSM,PGD"
-        />
-      </label>
-      <details class="advanced-panel" *ngIf="robustnessAttackOptions.length > 0">
-        <summary>Detected attacks</summary>
-        <div class="evaluation-list">
-          <label class="evaluation-item" *ngFor="let attackName of robustnessAttackOptions">
-            <input
-              type="checkbox"
-              [checked]="selectedRobustnessAttacks.includes(attackName)"
-              (change)="onRobustnessAttackToggle(attackName, $any($event.target).checked)"
-            />
-            <span>{{ attackName }}</span>
-          </label>
-        </div>
-      </details>
+      <p class="section-label" style="color: #d9534f; font-weight: bold;">Testing with ProjectedGradientDescentTabular (HARDCODED - Attack list dropdown disabled for debugging)</p>
+      <!-- TEMPORARILY DISABLED: Attack selection dropdown
+      <p class="section-label">Select Attack Types</p>
+      <div class="attack-list" role="group" aria-label="Attack types">
+        <label class="attack-item" *ngFor="let attackName of robustnessAttackOptions">
+          <input
+            type="checkbox"
+            [checked]="selectedRobustnessAttacks.includes(attackName)"
+            (change)="onRobustnessAttackToggle(attackName, $any($event.target).checked)"
+          />
+          <span>{{ attackName }}</span>
+        </label>
+      </div>
+      -->
     </section>
 
     <p class="linked-model" *ngIf="selectedModel">

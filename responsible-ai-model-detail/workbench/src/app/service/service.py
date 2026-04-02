@@ -789,6 +789,7 @@ class InfosysRAI:
                         
                     # Trigger the API call asynchronously using a separate thread
                     p1 = multiprocessing.Process(target = send_seurity_request, args=(batchedTenetId['BatchId'], )) 
+                    p1.start()
                     print("Security batch completed")
                     batchedTenetIds.append({"BatchId": batchedTenetId["BatchId"], "TenetId": tenantId})  # Add the new entry to the list
                     uniqueBatchIds.add(batchedTenetId['BatchId'])

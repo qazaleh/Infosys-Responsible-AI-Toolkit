@@ -25,6 +25,18 @@ logger = logging.getLogger(__name__)
 fairnesstelemetryurl = os.getenv("FAIRNESS_TELEMETRY_URL")
 telemetry_flag = os.getenv("tel_Falg")
 
+
+def _send_telemetry(payload: dict):
+    if telemetry_flag != 'True':
+        return
+    if not fairnesstelemetryurl:
+        log.warning("FAIRNESS_TELEMETRY_URL is empty. Skipping telemetry call.")
+        return
+    try:
+        requests.post(fairnesstelemetryurl, json=payload, timeout=5)
+    except Exception as telemetry_error:
+        log.error(f"Telemetry call failed: {telemetry_error}")
+
 class CustomHTTPException(Exception):
     def __init__(self, error_dict : dict, name: str, msg: str):
         self.error_dict = error_dict
@@ -35,11 +47,7 @@ class CustomHTTPException(Exception):
 async def http_exception_handler(request: Request, exc: CustomHTTPException,):
     error_dict = exc.error_dict
     error = error_dict["errorMessage"]
-    if(telemetry_flag == 'True'):
-        log.info("inside telemetry_flag")
-        response = requests.post(fairnesstelemetryurl, json=error_dict)
-        response_data = response.json()
-        log.info(f"{response_data}response_data")
+    _send_telemetry(error_dict)
     return JSONResponse(
         status_code=500,
         content={"message": f"Oops! {exc.msg}"},
@@ -53,12 +61,7 @@ async def catch_exceptions_middleware(request: Request, call_next):
         # you probably want some kind of logging here
         log.info("inside catch_exceptions_middleware exception")
         logger.exception(e)
-        if(telemetry_flag == 'True'):
-            log.info("inside telemetry_flag")
-            response = requests.post(fairnesstelemetryurl, json=SERVICE_Internal_METADATA)
-            log.info(f"{response}response")
-            response_data = response.json()
-            log.info(f"{response_data}response_data")
+        _send_telemetry(SERVICE_Internal_METADATA)
         return JSONResponse("Internal server error occured", status_code=500)
     
 

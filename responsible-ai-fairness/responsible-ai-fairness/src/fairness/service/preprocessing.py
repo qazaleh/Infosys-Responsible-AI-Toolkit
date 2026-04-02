@@ -259,10 +259,27 @@ class FairnessServicePreproc:
             }
             Html.create(doc)
 
+            # Ensure wrapper download can resolve this batch from Report collection.
+            report_doc = {
+                'ReportId': time.time(),
+                'BatchId': batchId,
+                'TenetId': tenet_id,
+                'ReportName': 'fairness_report.html',
+                'ReportFileId': htmlFileId,
+                'ContentType': 'text/html',
+                'CreatedDateTime': datetime.datetime.now(),
+            }
+            Report.create(report_doc)
+
             url = os.getenv("REPORT_URL")
             payload = {"batchId": batchId}
-            response = requests.request(
-                "POST", url, data=payload, verify=False).json()
+            if url and str(url).strip().lower().startswith(("http://", "https://")):
+                try:
+                    requests.request("POST", url, data=payload, verify=False, timeout=10)
+                except Exception as report_error:
+                    log.warning(f"Report conversion trigger failed for batch {batchId}: {report_error}")
+            else:
+                log.warning("REPORT_URL is empty or invalid. Skipping report trigger call.")
             return objbias_pretrainanalyzeResponse
 
 
@@ -452,37 +469,68 @@ class FairnessUIservicePreproc:
 
 
         feature_list = list(dataset.columns)
-        # to create dictionary of CA present in dataset
+        # Build categorical values from object columns and normalize target/protected columns to strings.
+        def normalize_series_values(df, column_name):
+            normalized_series = (
+                df[column_name]
+                .dropna()
+                .astype(str)
+                .str.replace('.', '', regex=False)
+            )
+            normalized_series = normalized_series[normalized_series != '?']
+            return list(normalized_series.unique())
+
         categorical_values = {}
         st_ti = time.time()
         log.info(f"Entering CA Dict:{st_ti}")
         updated_df = dataset.select_dtypes(exclude='number')
         for each in list(updated_df.columns):
-            updated_df.drop(
-                updated_df[(updated_df[each] == '?')].index, inplace=True)
-            updated_df[each] = updated_df[each].str.replace('.', '')
-            categorical_values[each] = list(updated_df[each].unique())
+            categorical_values[each] = normalize_series_values(updated_df, each)
 
-        outcomeList = categorical_values[label]
-        outcomeList.remove(favourableOutcome)
-        unfavourableOutcome = ''.join(outcomeList)
+        if label not in dataset.columns:
+            raise HTTPException(status_code=400, detail=f"Label '{label}' not found in dataset")
+        if label not in categorical_values:
+            categorical_values[label] = normalize_series_values(dataset, label)
+
+        normalized_favourable_outcome = str(favourableOutcome).replace('.', '')
+        outcomeList = [str(item).replace('.', '') for item in categorical_values[label]]
+        if normalized_favourable_outcome not in outcomeList:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Favorable outcome '{favourableOutcome}' is not present in label '{label}'. "
+                    f"Available outcomes: {outcomeList}"
+                ),
+            )
+
+        unfavourableOutcome = ''.join(
+            [value for value in outcomeList if value != normalized_favourable_outcome]
+        )
 
         ca_list = list(categorical_values.keys())
-        ca_list.remove(label)
+        if label in ca_list:
+            ca_list.remove(label)
 
         protected_attribute_list = []
 
         for pa in protectedAttribute:
-            attribute_values = categorical_values[pa]
-            ca_list.remove(pa)
+            if pa not in dataset.columns:
+                raise HTTPException(status_code=400, detail=f"Protected attribute '{pa}' not found")
+            if pa not in categorical_values:
+                categorical_values[pa] = normalize_series_values(dataset, pa)
+
+            attribute_values = list(categorical_values[pa])
+            if pa in ca_list:
+                ca_list.remove(pa)
             request = {}
             request["name"] = pa
             priv_each_list = []
             for priv_list_ in priv_list:
                 for each in priv_list_:
-                    if each in attribute_values:
-                        priv_each_list.append(each)
-                        attribute_values.remove(each)
+                    normalized_each = str(each).replace('.', '')
+                    if normalized_each in attribute_values:
+                        priv_each_list.append(normalized_each)
+                        attribute_values.remove(normalized_each)
                         log.info(f"Request after each turn: {request}")
             request["privileged"] = priv_each_list
             request["unprivileged"] = attribute_values
@@ -518,7 +566,7 @@ class FairnessUIservicePreproc:
             "{label}", label)
         request_payload = request_payload.replace("{predLabel}", predLabel)
         request_payload = request_payload.replace("{favourableOutcome}",
-                                                  favourableOutcome)
+                                                  normalized_favourable_outcome)
         request_payload = request_payload.replace("{unfavourableOutcome}",
                                                   unfavourableOutcome)
         log.info(request_payload)
@@ -789,22 +837,44 @@ class FairnessUIservicePreproc:
         categorical_values = {}
         updated_df = read_file.select_dtypes(exclude='number')
         udf_columns = list(updated_df.columns)
-        for each in udf_columns:
-            updated_df.drop(
-                updated_df[(updated_df[each] == '?')].index, inplace=True)
-            updated_df[each] = updated_df[each].str.replace('.', '')
-            categorical_values[each] = list(updated_df[each].unique())
 
+        def normalize_series_values(df, column_name):
+            normalized_series = (
+                df[column_name]
+                .dropna()
+                .astype(str)
+                .str.replace('.', '', regex=False)
+            )
+            normalized_series = normalized_series[normalized_series != '?']
+            return list(normalized_series.unique())
+
+        for each in udf_columns:
+            categorical_values[each] = normalize_series_values(updated_df, each)
+
+        if label not in read_file.columns:
+            raise HTTPException(status_code=400, detail=f"Label '{label}' not found in dataset")
+        if label not in categorical_values:
+            categorical_values[label] = normalize_series_values(read_file, label)
+
+        normalized_favourable_outcome = str(favourableOutcome).replace('.', '')
         for value in categorical_values[label]:
-            if value == favourableOutcome:
+            if str(value).replace('.', '') == normalized_favourable_outcome:
                 labelmap[value] = '1'
             else:
                 labelmap[value] = '0'
 
-        outcomeList = categorical_values[label].copy()
+        outcomeList = [str(item).replace('.', '') for item in categorical_values[label]]
         log.info(f"OutcomeList:{outcomeList}")
-        log.info(f"FavourableOutcome:{favourableOutcome}")
-        outcomeList.remove(favourableOutcome)
+        log.info(f"FavourableOutcome:{normalized_favourable_outcome}")
+        if normalized_favourable_outcome not in outcomeList:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Favorable outcome '{favourableOutcome}' is not present in label '{label}'. "
+                    f"Available outcomes: {outcomeList}"
+                ),
+            )
+        outcomeList.remove(normalized_favourable_outcome)
         unfavourableOutcome = ''.join(outcomeList)
         priv_list = priv
         if len(priv_list) != len(protectedAttribute):
@@ -813,21 +883,29 @@ class FairnessUIservicePreproc:
         log.info("Priv_list", priv_list)
 
         ca_list = list(categorical_values.keys()).copy()
-        ca_list.remove(label)
+        if label in ca_list:
+            ca_list.remove(label)
 
         protected_attribute_list = []
 
         for pa in protectedAttribute:
-            attribute_values = categorical_values[pa]
-            ca_list.remove(pa)
+            if pa not in read_file.columns:
+                raise HTTPException(status_code=400, detail=f"Protected attribute '{pa}' not found")
+            if pa not in categorical_values:
+                categorical_values[pa] = normalize_series_values(read_file, pa)
+
+            attribute_values = list(categorical_values[pa])
+            if pa in ca_list:
+                ca_list.remove(pa)
             request = {}
             request["name"] = pa
             priv_each_list = []
             for priv_list_ in priv_list:
                 for each in priv_list_:
-                    if each in attribute_values:
-                        priv_each_list.append(each)
-                        attribute_values.remove(each)
+                    normalized_each = str(each).replace('.', '')
+                    if normalized_each in attribute_values:
+                        priv_each_list.append(normalized_each)
+                        attribute_values.remove(normalized_each)
                         log.info(f"Request after each turn:{request}")
             request["privileged"] = priv_each_list
             request["unprivileged"] = attribute_values

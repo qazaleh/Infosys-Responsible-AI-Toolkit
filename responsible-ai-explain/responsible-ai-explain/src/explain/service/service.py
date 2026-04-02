@@ -546,6 +546,33 @@ class ExplainService:
             return GetReportResponse(status='FAILURE', 
                                      message='Batch Id missing')
         try:
+            def normalize_methods(raw_methods):
+                if raw_methods is None:
+                    return []
+                if isinstance(raw_methods, list):
+                    candidates = raw_methods
+                elif isinstance(raw_methods, str):
+                    text_value = raw_methods.strip()
+                    if not text_value:
+                        return []
+                    if text_value.startswith('[') and text_value.endswith(']'):
+                        try:
+                            parsed_value = json.loads(text_value.replace("'", '"'))
+                            candidates = parsed_value if isinstance(parsed_value, list) else [parsed_value]
+                        except Exception:
+                            candidates = [item.strip("'\" ") for item in text_value[1:-1].split(',')]
+                    else:
+                        candidates = [item.strip() for item in text_value.split(',')]
+                else:
+                    candidates = [raw_methods]
+
+                normalized = []
+                for item in candidates:
+                    method_name = str(item).strip()
+                    if method_name:
+                        normalized.append(method_name)
+                return normalized
+
             tenet_id = Tenet.find(tenet_name='Explainability')
             batch_id = payload.batchId
             batch_details = Batch.find(batch_id=batch_id, tenet_id=tenet_id)
@@ -559,20 +586,35 @@ class ExplainService:
             task_type = model_attribute_values[0]
             target_data_type = model_attribute_values[1]
 
-            if task_type != 'TIMESERIESFORECAST' and target_data_type != 'Text': 
-                updated_methods = {"GLOBAL":["KERNEL-EXPLAINER"], "LOCAL": ["LIME-TABULAR"]}
-            elif task_type == 'TIMESERIESFORECAST':
-                updated_methods = {"GLOBAL": ["TS-KERNEL-EXPLAINER"],"LOCAL": ["TS-LIME-TABULAR"]}
+            model_attribute_ids = ModelAttributes.find(model_attributes=['appExplanationMethods'])
+            model_attribute_values = ModelAttributeValues.find(
+                batch_id=batch_id,
+                model_id=modelId,
+                model_attribute_ids=model_attribute_ids
+            )
+            selected_methods = normalize_methods(model_attribute_values[0] if model_attribute_values else None)
+
+            if selected_methods:
+                updated_methods = {'GLOBAL': [], 'LOCAL': []}
+                for method_name in selected_methods:
+                    if method_name in ('KERNEL-EXPLAINER', 'TS-KERNEL-EXPLAINER'):
+                        updated_methods['GLOBAL'].append(method_name)
+                    else:
+                        updated_methods['LOCAL'].append(method_name)
+                updated_methods = {scope: methods for scope, methods in updated_methods.items() if methods}
             else:
-                model_attribute_ids = ModelAttributes.find(model_attributes=['appExplanationMethods'])
-                model_attribute_values = ModelAttributeValues.find(batch_id=batch_id, model_id=modelId, model_attribute_ids=model_attribute_ids)    
-                methods = model_attribute_values[0]
-                updated_methods = {"LOCAL": methods}
+                if task_type != 'TIMESERIESFORECAST' and target_data_type != 'Text':
+                    updated_methods = {'GLOBAL': ['KERNEL-EXPLAINER'], 'LOCAL': ['LIME-TABULAR']}
+                elif task_type == 'TIMESERIESFORECAST':
+                    updated_methods = {'GLOBAL': ['TS-KERNEL-EXPLAINER'], 'LOCAL': ['TS-LIME-TABULAR']}
+                else:
+                    updated_methods = {'LOCAL': ['LIME-TABULAR']}
 
             # Update the batch status to "Started"
             Batch.update(batch_id=batch_id, value={'Status': "Started"})
             
             final_response=[]
+            method_errors = []
             
             for scope, values in updated_methods.items():
                 for method in values:
@@ -583,7 +625,16 @@ class ExplainService:
                                           scope=scope, method=method)
                    
                     # Generate explanation for the given payload
-                    obj_explain = ExplainService.generate_explanation(payload_obj)
+                    try:
+                        obj_explain = ExplainService.generate_explanation(payload_obj)
+                    except Exception as method_error:
+                        log.error(f"UUID: {request_id_var.get()}, Skipping failed report method {scope}/{method}: {method_error}")
+                        method_errors.append(f"{scope}/{method}: {method_error}")
+                        continue
+
+                    if not obj_explain.explanation:
+                        method_errors.append(f"{scope}/{method}: Empty explanation response")
+                        continue
                     
                     response["title"] = title
                     response["algorithm"] = obj_explain.explanation[0].algorithm
@@ -622,7 +673,15 @@ class ExplainService:
                         response["shapImportanceText"] = None
 
                     final_response.append(response)
+
+            if len(final_response) == 0:
+                combined_errors = ' | '.join(method_errors) if method_errors else 'No explainability output generated.'
+                raise ValueError(combined_errors)
             
+            # Ensure report output directory exists before HTML/chart generation.
+            output_dir = '../output'
+            os.makedirs(output_dir, exist_ok=True)
+
             # Generate HTML content from the final_response
             html_content = Report.generate_html_content(final_response)
             
@@ -634,11 +693,7 @@ class ExplainService:
             CreateCSV.json_to_csv(final_response)
 
             # Define the directory containing the files to be zipped and the zip file path
-            output_dir = '../output'
             zip_file_path = os.path.join(output_dir, 'report.zip')
-
-            # Ensure the output directory exists
-            os.makedirs(output_dir, exist_ok=True)
 
             # Create a zip file and add all .csv and .html files in the output directory to it
             with zipfile.ZipFile(zip_file_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
