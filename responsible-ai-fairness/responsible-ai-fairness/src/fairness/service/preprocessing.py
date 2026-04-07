@@ -71,6 +71,37 @@ class FairnessServicePreproc:
     MITIGATED_LOCAL_FILE_PATH="../output/MitigatedData/"
     MITIGATED_UPLOAD_PATH="responsible-ai//responsible-ai-fairness//MitigatedData"
     LOCAL_FILE_PATH="../output/datasets/"
+    POSTTRAIN_METHODS = {
+        "BINARY CLASSIFICATION": [
+            "STATISTICAL_PARITY",
+            "DISPARATE_IMPACT",
+            "FOUR_FIFTHS_RULE",
+            "COHEN_D",
+            "EQUAL_OPPORTUNITY_DIFFERENCE",
+            "FALSE_POSITIVE_RATE_DIFFERENCE",
+            "FALSE_NEGATIVE_RATE_DIFFERENCE",
+            "TRUE_NEGATIVE_RATE_DIFFERENCE",
+            "AVERAGE_ODDS_DIFFERENCE",
+            "ACCURACY_DIFFERENCE",
+            "Z_TEST_DIFFERENCE",
+            "ABROCA",
+        ],
+        "REGRESSION": [
+            "DISPARATE IMPACT QUANTILE",
+            "STATISTICAL PARITY QUANTILE",
+            "NO DISPARATE IMPACT LEVEL",
+            "AVERAGE SCORE DIFFERENCE",
+            "ZSCORE DIFFERENCE",
+            "MAX STATISTICAL PARITY",
+            "STATISTICAL PARITY AUC",
+        ],
+        "CLUSTERING": [
+            "CLUSTER BALANCE",
+            "MINIMUM CLUSTER RATIO",
+            "CLUSTER DISTRIBUTION KL",
+            "CLUSTER DISTRIBUTION TOTAL VARIATION",
+        ],
+    }
 
     def __init__(self, db=None):
         if db is not None:
@@ -110,15 +141,81 @@ class FairnessServicePreproc:
         ds = DataList()
         group_unpriv_ts, group_priv_ts, df_preprocessed, df_orig = ds.preprocessDataset(testdata, label, labelmap,
                                                                                         protectedAttributes, taskType, flag,predLabel)
-        predicted_y = df_preprocessed[predLabel]
-        actual_y = df_preprocessed["label"]
+        # HolisticAI metrics are strict about receiving 1D array-like inputs.
+        predicted_y = np.asarray(df_preprocessed[predLabel]).reshape(-1)
+        actual_y = np.asarray(df_preprocessed["label"]).reshape(-1)
+        group_unpriv_ts = np.asarray(group_unpriv_ts).reshape(-1)
+        group_priv_ts = np.asarray(group_priv_ts).reshape(-1)
         biasResult = BiasResult()
-        list_bias_results = biasResult.analyseHoilisticAIBiasResult(taskType, methods, group_unpriv_ts,
-                                                                    group_priv_ts, predicted_y, actual_y,
-                                                                    protectedAttributes)
+        list_bias_results = FairnessServicePreproc._safe_posttrain_metric_analysis(
+            biasResult,
+            taskType,
+            methods,
+            group_unpriv_ts,
+            group_priv_ts,
+            predicted_y,
+            actual_y,
+            protectedAttributes,
+        )
         log.info(f"list_bias_results: {list_bias_results}")
 
         return list_bias_results
+
+    @staticmethod
+    def _safe_posttrain_metric_analysis(
+        biasResult,
+        taskType,
+        methods,
+        group_unpriv_ts,
+        group_priv_ts,
+        predicted_y,
+        actual_y,
+        protectedAttributes,
+    ):
+        def run_single_metric(method_name):
+            return biasResult.analyseHoilisticAIBiasResult(
+                taskType,
+                method_name,
+                group_unpriv_ts,
+                group_priv_ts,
+                predicted_y,
+                actual_y,
+                protectedAttributes,
+            )
+
+        if methods != "ALL":
+            return run_single_metric(methods)
+
+        normalized_task = "BINARY CLASSIFICATION" if taskType == "CLASSIFICATION" else taskType
+        method_names = FairnessServicePreproc.POSTTRAIN_METHODS.get(normalized_task, [])
+        aggregated_metrics = []
+        protected_attribute = None
+        bias_detected = False
+
+        for method_name in method_names:
+            try:
+                metric_result = run_single_metric(method_name)
+            except Exception as metric_error:
+                log.warning(f"Skipping post-train metric {method_name} due to error: {metric_error}")
+                continue
+
+            if not metric_result:
+                continue
+
+            result_entry = metric_result[0]
+            if protected_attribute is None:
+                protected_attribute = result_entry.get("protectedAttribute", [])
+            aggregated_metrics.extend(result_entry.get("metrics", []))
+            bias_detected = bias_detected or bool(result_entry.get("biasDetected"))
+
+        if not aggregated_metrics:
+            raise ValueError("All post-train fairness metrics failed for the given dataset.")
+
+        return [{
+            "biasDetected": bias_detected,
+            "protectedAttribute": protected_attribute or [],
+            "metrics": aggregated_metrics,
+        }]
     
     def preprocessingmitigateandtransform(traindata, labelmap, label, protectedAttributes, favourableOutcome,
                                           CategoricalAttributes, features, biastype, methods, mitigationTechnique, flag):
@@ -193,9 +290,9 @@ class FairnessServicePreproc:
             individual_data = None
             #get the results of individual_fairness
             if methods == "ALL" :
-                #get the results of individual_fairness
+                # Pull the metric for the active label instead of the old hardcoded demo column.
                 individual_fairness=individual_fairness.result()
-                individual_data = [item['income-per-year'] for item in individual_fairness if 'income-per-year' in item]
+                individual_data = [item[label] for item in individual_fairness if label in item]
             objbias_pretrainanalyzeResponse = BiasAnalyzeMetrics(
                 biasResults=list_bias_results, individualMetrics=individual_data)
         elif biastype == "PRETRAIN" and methods != "ALL" and methods != "CONSISTENCY":
@@ -208,7 +305,7 @@ class FairnessServicePreproc:
 
         elif biastype == "PRETRAIN" and methods == "CONSISTENCY":
             individual_fairness=individual_fairness.result()
-            individual_data = [item['income-per-year'] for item in individual_fairness if 'income-per-year' in item]
+            individual_data = [item[label] for item in individual_fairness if label in item]
             objbias_pretrainanalyzeResponse = BiasAnalyzeIndividualMetric(individualMetrics=individual_data)
 
         elif biastype == "POSTTRAIN":
@@ -222,7 +319,10 @@ class FairnessServicePreproc:
         if batchId == None:
             return objbias_pretrainanalyzeResponse
         else:
-            local_file_path = '../output/' + "sample.json"
+            batch_suffix = str(batchId).replace('.', '_')
+            json_file_name = f"sample_{batch_suffix}.json"
+            html_report_name = f"fairness_report_{batch_suffix}.html"
+            local_file_path = f'../output/{json_file_name}'
             # self.utils.save_as_json_file(
             #     local_file_path, list_bias_results,individual_fairness)
             if biastype == "PRETRAIN" and methods != "CONSISTENCY" and methods == "ALL":
@@ -241,19 +341,19 @@ class FairnessServicePreproc:
                 self.utils.save_as_json_file(
                 local_file_path, list_bias_results,None)
                 html=self.utils.json_to_html(list_bias_results,None,predLabel,dataset_attribute_values,unprivileged)
-            local_file_path = "../output/fairness_report.html"
+            local_file_path = f"../output/{html_report_name}"
             self.utils.save_html_to_file(html, local_file_path)
             # reportId= self.fileStore.save_file(file=html)
             tenet_id = self.tenet.find(tenet_name='Fairness')
             html_containerName = os.getenv('HTML_CONTAINER_NAME')
             htmlFileId = self.fileStore.save_file(file=BytesIO(html.encode(
-                'utf-8')), filename='fairness_report.html', contentType='text/html', tenet='Fairness', container_name=html_containerName)
+                'utf-8')), filename=html_report_name, contentType='text/html', tenet='Fairness', container_name=html_containerName)
             HtmlId = time.time()
             doc = {
                 'HtmlId': HtmlId,
                 'BatchId': batchId,
                 'TenetId': tenet_id,
-                'ReportName': 'fairness_report.html',
+                'ReportName': html_report_name,
                 'HtmlFileId': htmlFileId,
                 'CreatedDateTime': datetime.datetime.now(),
             }
@@ -264,7 +364,7 @@ class FairnessServicePreproc:
                 'ReportId': time.time(),
                 'BatchId': batchId,
                 'TenetId': tenet_id,
-                'ReportName': 'fairness_report.html',
+                'ReportName': html_report_name,
                 'ReportFileId': htmlFileId,
                 'ContentType': 'text/html',
                 'CreatedDateTime': datetime.datetime.now(),
@@ -453,7 +553,7 @@ class FairnessUIservicePreproc:
         favourableOutcome = payload["favorableOutcome"]
         protectedAttribute = payload["protectedAttribute"]
         priv = payload['privilegedGroup']
-        predLabel=payload["predLabel"]
+        predLabel=payload.get("predLabel") or label
         k=payload["knn"]
         log.info(f"biasType:, {biasType}, methodType:, {methodType}, taskType:, {taskType}, label:, {label}, favourableOutcome:, {favourableOutcome}, protectedAttribute:, {protectedAttribute}, priv:, {priv},predLabel:,{predLabel}")            
         retrivedata = self.fileStore.read_file(fileId)
@@ -603,9 +703,9 @@ class FairnessUIservicePreproc:
         df = dataset.copy()
         # drop labels other than the current label, so that it will not be considered for fairness
         if operation_type=="PREPROCESSING" and "labels_pred" in df.columns:
-            df = df.drop("pred_label", axis=1)
+            df = df.drop("labels_pred", axis=1)
         if operation_type=="POSTPROCESSING" and label in df.columns:
-            df=df.drop(label,axix=1)
+            df=df.drop(label, axis=1)
             # customize StandardDataset just for Individual fairness, as we are not considering protected attributes
         dataset_orig = StandardDataset(df=df, label_name=label, favorable_classes=[df[label][0]],
                                            protected_attribute_names=[],
@@ -660,7 +760,8 @@ class FairnessUIservicePreproc:
             payload_details_dict[attributes_list[i]]=payload_details_list[i]
         
         log.info(f"payload_details_dict--->{payload_details_dict}")
-        payload_details_dict["predLabel"]="labels_pred"        #Default predLabel
+        # For PRETRAIN runs there is no prediction column, so reuse the true label by default.
+        payload_details_dict["predLabel"]=payload_details_dict["label"]
         if payload_details_dict["biasType"] =="POSTTRAIN":   #Add predLabel if biasType is POSTTRAIN
             predLabel = self.dataAttributes.find(dataset_attributes=["predLabel"])
             if self.dataAttributeValues.checkValue(dataset_id=datasetId, dataset_attribute_ids=predLabel, batch_id=batchId):

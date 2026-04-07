@@ -79,7 +79,7 @@ class Utils:
             # If methodType is passed, call a function
             html_content += f"""
             <body>
-                <h3 style='color:#963596; text-align:left; font-size:19px; font-family: sans-serif;'>INDIVIDUAL METRICS</h3>
+                <h3 style='color:#c88917; text-align:left; font-size:19px; font-family: sans-serif;'>INDIVIDUAL METRICS</h3>
                 <p style='font-family: sans-serif; font-size:16px;'>Individual metrics in fairness analysis assess the performance and treatment of individual instances within a dataset or model. These metrics focus on outcomes for specific individuals rather than comparing groups. They evaluate how consistently and fairly an individual is treated based on their characteristics.</p>
             </body>
             """
@@ -105,7 +105,7 @@ class Utils:
             html_content += result
             html_content += f"""
             <body>
-                <h3 style='color:#963596; text-align:left; font-size:19px; font-family: sans-serif;'>INDIVIDUAL METRICS</h3>
+                <h3 style='color:#c88917; text-align:left; font-size:19px; font-family: sans-serif;'>INDIVIDUAL METRICS</h3>
                 <p style='font-family: sans-serif; font-size:16px;'>Individual metrics in fairness analysis assess the performance and treatment of individual instances within a dataset or model. These metrics focus on outcomes for specific individuals rather than comparing groups. They evaluate how consistently and fairly an individual is treated based on their characteristics.</p>
             </body>
             """
@@ -163,8 +163,8 @@ class Utils:
  
         # # Generate HTML content
         html_content = f"""
-        <div style='display: flex; justify-content: center; align-items: left; color:white; background-color: #963596; font-size:23px; font-family: sans-serif; border-radius: 10px; position: relative;'>
-            <h2 style='margin: 0; style=font-family: sans-serif;'>INFOSYS RESPONSIBLE AI OFFICE</h2>
+        <div style='display: flex; justify-content: center; align-items: center; color:#2b1a09; background: linear-gradient(135deg, #f4c86f 0%, #dea037 100%); font-size:23px; font-family: sans-serif; border-radius: 16px; position: relative; padding: 12px 18px; box-shadow: 0 10px 24px rgba(97, 63, 12, 0.15);'>
+            <h2 style='margin: 0; font-family: sans-serif;'>TrustAI</h2>
             <span style='position:absolute; right:1; font-size:15px; align-self: center; padding: 0 10px;'>{timestamp}</span>
         </div>
         """
@@ -173,14 +173,14 @@ class Utils:
         # html_content = html_content+f"<h3 style='font-weight:normal; font-family: sans-serif; font-size:16px; font-family: sans-serif;'>{Obj_Desc}</h3>"
         html_content += f"""
         <body>
-            <h3 style='color:#963596; text-align:left; font-size:19px; font-family: sans-serif;'>FAIRNESS REPORT</h3>
+            <h3 style='color:#c88917; text-align:left; font-size:19px; font-family: sans-serif;'>FAIRNESS REPORT</h3>
             <p style='font-family: sans-serif; font-size:16px;'>{Obj_Desc}</p>
         </body>
         """
         html_content += f"""
-        <div style='width: 50%; font-family: sans-serif;'>
-            <h3 class="header" style="color:#963596; font-size:19px;"><strong>DATA INFORMATION</strong></h3>
-            <table>
+        <div style='width: 50%; font-family: sans-serif; background:#fffaf0; border:1px solid #efd29a; border-radius:14px; padding:14px 16px; box-shadow: 0 8px 18px rgba(97, 63, 12, 0.08);'>
+            <h3 class="header" style="color:#c88917; font-size:19px;"><strong>DATA INFORMATION</strong></h3>
+            <table style='width:100%;'>
                 <tr><td style="font-size:16px; font-family: sans-serif;">Bias Type</td><td>:</td><td style="color: darkgray; font-size:16px; font-family: sans-serif;">{biasType}</td></tr>
                 <tr><td style="font-size:16px; font-family: sans-serif;">Bias Detection Technique(s)</td><td>:</td><td style="color: darkgray; font-size:16px; font-family: sans-serif;">{methodType}</td></tr>
                 <tr><td style="font-size:16px; font-family: sans-serif;">Task Type</td><td>:</td><td style="color: darkgray; font-size:16px; font-family: sans-serif;">{taskType}</td></tr>
@@ -191,18 +191,18 @@ class Utils:
         """
         html_content += f"""
         <body>
-            <h3 style='color:#963596; text-align:left; font-size:19px; font-family: sans-serif;'>GROUP METRICS</h3>
+            <h3 style='color:#c88917; text-align:left; font-size:19px; font-family: sans-serif;'>GROUP METRICS</h3>
             <p style='font-family: sans-serif; font-size:16px;'>Group metrics are measures used to compare the success rates of different groups, like privileged and unprivileged.</p>
         </body>
         """
         html_content +=f"""
-            <table border="1" style="border-collapse: collapse; width:100%;  font-size:16px; font-family: sans-serif;">
+            <table border="1" style="border-collapse: collapse; width:100%; font-size:16px; font-family: sans-serif; border:1px solid #e7c780;">
                 <tr>
-                    <th style= >Metric</th>
-                    <th>Protected Attribute</th>
-                    <th>Indicator</th>
-                    <th>Favouring Groups</th>
-                    <th>Unfavouring Groups</th>
+                    <th style='background:#f8e8c0; color:#5f4314;'>Metric</th>
+                    <th style='background:#f8e8c0; color:#5f4314;'>Protected Attribute</th>
+                    <th style='background:#f8e8c0; color:#5f4314;'>Indicator</th>
+                    <th style='background:#f8e8c0; color:#5f4314;'>Favouring Groups</th>
+                    <th style='background:#f8e8c0; color:#5f4314;'>Unfavouring Groups</th>
                 </tr>
         """
 
@@ -716,22 +716,22 @@ class Utils:
         unprivl = unpriv.replace("'", "").replace("[","").replace("]","")  
 
         html_content = f"""
-        <div style='display: flex; justify-content: center; align-items: left; color:white; background-color: #963596; font-size:23px; font-family: sans-serif; border-radius: 10px; position: relative;'>
-            <h2 style='margin: 0;'>INFOSYS RESPONSIBLE AI OFFICE</h2>
+        <div style='display: flex; justify-content: center; align-items: center; color:#2b1a09; background: linear-gradient(135deg, #f4c86f 0%, #dea037 100%); font-size:23px; font-family: sans-serif; border-radius: 16px; position: relative; padding: 12px 18px; box-shadow: 0 10px 24px rgba(97, 63, 12, 0.15);'>
+            <h2 style='margin: 0;'>TrustAI</h2>
             <span style='position:absolute; right:1; font-size:15px; align-self: center; padding: 0 10px;'>{timestamp}</span>
         </div>
         """
-        html_content += f"<body><h3 style='color:#963596; text-align:left; font-size:23px' style=font-family: sans-serif;>FAIRNESS REPORT</h3></body>"
+        html_content += f"<body><h3 style='color:#c88917; text-align:left; font-size:23px' style=font-family: sans-serif;>FAIRNESS REPORT</h3></body>"
         html_content = html_content+f"<h3 style='font-weight:normal; font-family: sans-serif; font-size:17px; color: darkgray; style=font-family: sans-serif;'>{F_Desc}</h3>"
         html_content = html_content+f"<h3 style='font-weight:normal; font-family: sans-serif; font-size:17px; color: darkgray;style=font-family: sans-serif;'>{Obj_Desc}</h3>"
         html_content += f"""
-        <div style='width: 50%;'>
-            <h3 class="header" style="font-size:22px; color:#963596;"><strong>DATA INFORMATION</strong></h3>
-            <p><strong style="color:#963596; font-size:16px; font-family: sans-serif;">BiasType:</strong> <span style="color: darkgray; font-size:16px; font-family: sans-serif;">{biasType}</span></p>
-            <p><strong style="color:#963596; font-size:16px; font-family: sans-serif;">MethodType:</strong> <span style="color: darkgray; font-size:16px; font-family: sans-serif;">{methodType}</span></p>
-            <p><strong style="color:#963596; font-size:16px; font-family: sans-serif;">TaskType:</strong> <span style="color: darkgray; font-size:16px; font-family: sans-serif;">{taskType}</span></p>
-            <p><strong style="color:#963596; font-size:16px; font-family: sans-serif;">privilegedGroup:</strong> <span style="color: darkgray; font-size:16px; font-family: sans-serif;">{privl}</span></p>
-            <p><strong style="color:#963596; font-size:16px; font-family: sans-serif;">unprivilegedGroup:</strong> <span style="color: darkgray; font-size:16px; font-family: sans-serif;">{unprivl}</span></p>
+        <div style='width: 50%; background:#fffaf0; border:1px solid #efd29a; border-radius:14px; padding:14px 16px; box-shadow: 0 8px 18px rgba(97, 63, 12, 0.08);'>
+            <h3 class="header" style="font-size:22px; color:#c88917;"><strong>DATA INFORMATION</strong></h3>
+            <p><strong style="color:#c88917; font-size:16px; font-family: sans-serif;">BiasType:</strong> <span style="color: darkgray; font-size:16px; font-family: sans-serif;">{biasType}</span></p>
+            <p><strong style="color:#c88917; font-size:16px; font-family: sans-serif;">MethodType:</strong> <span style="color: darkgray; font-size:16px; font-family: sans-serif;">{methodType}</span></p>
+            <p><strong style="color:#c88917; font-size:16px; font-family: sans-serif;">TaskType:</strong> <span style="color: darkgray; font-size:16px; font-family: sans-serif;">{taskType}</span></p>
+            <p><strong style="color:#c88917; font-size:16px; font-family: sans-serif;">privilegedGroup:</strong> <span style="color: darkgray; font-size:16px; font-family: sans-serif;">{privl}</span></p>
+            <p><strong style="color:#c88917; font-size:16px; font-family: sans-serif;">unprivilegedGroup:</strong> <span style="color: darkgray; font-size:16px; font-family: sans-serif;">{unprivl}</span></p>
         </div>
         """
         return html_content

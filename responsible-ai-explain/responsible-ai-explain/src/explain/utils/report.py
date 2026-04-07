@@ -37,13 +37,15 @@ class Report:
             <style>
                 h2{
                     text-align: right;
-                    background-color: #963596;
-                    color: black;
+                    background: linear-gradient(135deg, #f4c86f 0%, #dea037 100%);
+                    color: #2b1a09;
                     font-size: 35px;
                     font-family: sans-serif;
+                    border-radius: 16px;
+                    padding: 12px 18px;
                 }
                 h3{
-                    color: #963596;
+                    color: #c88917;
                     text-align: left;
                     font-family: sans-serif;
                 }
@@ -62,7 +64,7 @@ class Report:
                     font-family: sans-serif;
                 }
                 .header{
-                    color: #963596;
+                    color: #c88917;
                     font-size: 25px;
                     margin: inherit;
                     font-style: normal;
@@ -90,7 +92,7 @@ class Report:
                     font-family: sans-serif;
                 }
                 .scope{
-                    color: #963596;
+                    color: #c88917;
                     text-align: left;
                     font-size: 25px; 
                     font-family: sans-serif;
@@ -172,7 +174,7 @@ class Report:
         html_content = f"""<style>{css_content}</style>
                                     <table border="1" class="inputRow">
                                     <thead>
-                                        <tr style="text-align: right; color: darkorchid">
+                                        <tr style="text-align: right; color: #c88917">
                                             <th colspan="2"><strong>Model Input Preview</strong></th>
                                         </tr>
                                         <tr style="text-align: right;">
@@ -241,7 +243,7 @@ class Report:
         target_label_header = target_label + " (target)" if target_label else "Model Prediction"
         # Start building the HTML content
         html_content = f"""<style>{css_content}</style>
-                            <p style="font-family: sans-serif; margin-top: 20px; color: #963596"><strong>ACTUAL DATA</strong></p>
+                            <p style="font-family: sans-serif; margin-top: 20px; color: #c88917"><strong>ACTUAL DATA</strong></p>
                             <table border="1" class="inputRow" style="width: 100%;">
                             <thead>
                                 <tr style="text-align: center;">
@@ -344,7 +346,7 @@ class Report:
                 ax.set_ylabel('Feature Thresholds' if method == "LIME TABULAR" else 'Keywords')
                 ax.set_title(f'Feature Importance for record - {i + 1}')
             else:
-                sns.barplot(x=data.value, y=data.feature, data=data, color='#0072BD', orient="h", ax=ax)
+                sns.barplot(x=data.value, y=data.feature, data=data, color='#d0911c', orient="h", ax=ax)
                 ax.set_xlim(0, 100)
                 ax.set_ylabel('Feature Names')
                 ax.set_title(f'Feature Importance')
@@ -448,14 +450,14 @@ class Report:
 
         html_content = "<style>p, div, h1, h2, h3, h4, h5, h6 { page-break-inside: avoid; }</style>"
         html_content += f"""
-            <h2 style='text-align:left; color:white; background-color:#963596; font-size:35px; font-family: sans-serif; border-radius: 10px; padding: 10px 20px; position: relative;'>
-                INFOSYS RESPONSIBLE AI
-                <div style='position: absolute; bottom: 10px; right: 20px; font-size: 15px; color: white;'>
+            <h2 style='text-align:left; color:#2b1a09; background:linear-gradient(135deg, #f4c86f 0%, #dea037 100%); font-size:35px; font-family: sans-serif; border-radius: 16px; padding: 12px 20px; position: relative; box-shadow: 0 10px 24px rgba(97, 63, 12, 0.15);'>
+                TrustAI
+                <div style='position: absolute; bottom: 10px; right: 20px; font-size: 15px; color: #2b1a09;'>
                     {date_time}
                 </div>
             </h2>
             """
-        html_content += f"<h2 style='text-align:left; color:#963596; font-size:25px; font-family: sans-serif;'>MODEL EXPLAINABILITY ASSESSMENT REPORT</h2>"
+        html_content += f"<h2 style='text-align:left; color:#c88917; font-size:25px; font-family: sans-serif;'>TRUSTAI MODEL EXPLAINABILITY REPORT</h2>"
         html_content += f"""
                         <div style="font-family: sans-serif; margin-top: 20px;">
                                 <p>

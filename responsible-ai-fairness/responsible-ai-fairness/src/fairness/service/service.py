@@ -212,7 +212,7 @@ class FairnessService:
 
         # Generate HTML content
         html_content = "<body><h2>FAIRNESS REPORT</h2>"
-        html_content = f"<h2 style='text-align:center; color:white; background-color:darkorchid; font-size:35px; font-family: sans-serif;'>Fairness Report</h2>"
+        html_content = f"<h2 style='text-align:center; color:#2b1a09; background:linear-gradient(135deg, #f4c86f 0%, #dea037 100%); font-size:35px; font-family: sans-serif; padding:14px 18px; border-radius:16px;'>TrustAI Fairness Report</h2>"
         html_content = (
             html_content
             + f"<h3 style='font-weight:normal; font-family: sans-serif; font-size:17px;'>{F_Desc}</h3>"
@@ -221,7 +221,7 @@ class FairnessService:
             html_content
             + f"<h3 style='font-weight:normal; font-family: sans-serif; font-size:17px;'>{D_Desc}</h3>"
         )
-        html_content += f"<body><h3 style='color:darkorchid; text-align:left; font-size:23px'>METRICS</h3></body>"
+        html_content += f"<body><h3 style='color:#c88917; text-align:left; font-size:23px'>METRICS</h3></body>"
 
         # Iterate over metrics and create plots
         for metric in metrics:
@@ -232,7 +232,7 @@ class FairnessService:
             # Create a new plot for each metric
             # plt.figure(figsize =(12,6))
             fig, ax = plt.subplots(figsize=(6, 4))
-            ax.bar(metric_name, metric_value, color="darkorchid")
+            ax.bar(metric_name, metric_value, color="#d0911c")
 
             ax.set_xlabel("Metric")
             ax.set_ylabel("Value")
@@ -251,7 +251,7 @@ class FairnessService:
             # Embed the base64 image in the HTML content
             # html_content = f"<h2 style='text-align:center; color:white; background-color:darkorchid; font-size:35px; font-family: sans-serif;'>Fairness Report</h2>"
 
-            html_content += f"<body><h3 style='color:darkorchid; text-align:left; font-size:21px'>{metric_name}</h3></body>"
+            html_content += f"<body><h3 style='color:#c88917; text-align:left; font-size:21px'>{metric_name}</h3></body>"
             html_content += f"<h3 style='font-weight:normal; font-family: sans-serif; font-size:17px;'>Description - {metric_desc}</h3>"
             html_content += f"<h3 style='font-weight:normal; font-family: sans-serif; font-size:17px;'>Measured Value = {metric_value}</h3>"
             html_content += f"<img src='data:image/png;base64,{encoded_image}' alt='{metric_name} Plot'>"
@@ -2631,4 +2631,3 @@ class FairnessUIservice:
                 result = "Please select a valid evaluator"
 
         return result
-

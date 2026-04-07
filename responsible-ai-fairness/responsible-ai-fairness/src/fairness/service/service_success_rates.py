@@ -92,8 +92,8 @@ class SuccessRateService:
         
         # Add title if provided
         if title:
-            PURPLE = (150, 53, 150)
-            WHITE = (255, 255, 255)
+            PURPLE = (222, 160, 55)
+            WHITE = (43, 26, 9)
             BLACK = (0, 0, 0)
             
             # Header section
@@ -102,14 +102,14 @@ class SuccessRateService:
             pdf.set_fill_color(*PURPLE)
             
             # Full-width header
-            pdf.cell(0, 15, 'INFOSYS RESPONSIBLE AI OFFICE', 
+            pdf.cell(0, 15, 'TrustAI', 
                     align='C', fill=True, border=0)            
             # Reset Y position
             pdf.set_y(30)
         pdf.set_y(25)  # Reduce vertical space
         pdf.set_text_color(*PURPLE)
         pdf.set_font('Helvetica', 'B', 10)
-        pdf.cell(0, 10, 'REPORT', ln=True)
+        pdf.cell(0, 10, 'FAIRNESS REPORT', ln=True)
         
         # Success Rate
         pdf.set_font('Helvetica', '', 8)
@@ -225,22 +225,22 @@ class SuccessRateService:
         html_path = OUTPUT_FOLDER+"fairness_report.html"
         timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         html_content = f"""
-        <div style='display: flex; justify-content: center; align-items: left; color:white; background-color: #963596; font-size:23px; font-family: sans-serif; border-radius: 10px; position: relative;'>
-            <h2 style='margin: 0; style=font-family: sans-serif;'>INFOSYS RESPONSIBLE AI OFFICE</h2>
+        <div style='display: flex; justify-content: center; align-items: center; color:#2b1a09; background: linear-gradient(135deg, #f4c86f 0%, #dea037 100%); font-size:23px; font-family: sans-serif; border-radius: 16px; position: relative; padding: 12px 18px; box-shadow: 0 10px 24px rgba(97, 63, 12, 0.15);'>
+            <h2 style='margin: 0; font-family: sans-serif;'>TrustAI</h2>
             <span style='position:absolute; right:1; font-size:15px; align-self: center; padding: 0 10px;'>{timestamp}</span>
         </div>
         """
 
         html_content += f"""
         <body>
-            <h3 style='color:#963596; text-align:left; font-size:19px; font-family: sans-serif;'>FAIRNESS REPORT</h3>
+            <h3 style='color:#c88917; text-align:left; font-size:19px; font-family: sans-serif;'>FAIRNESS REPORT</h3>
             <p style='font-family: sans-serif; font-size:16px;'>{SUCCESS_RATE_INFO}</p>
         </body>
         """
 
         html_content += f"""
-        <div style='width: 50%; font-family: sans-serif;'>
-            <h3 class="header" style="color:#963596; font-size:19px;"><strong>DATA INFORMATION</strong></h3>
+        <div style='width: 50%; font-family: sans-serif; background:#fffaf0; border:1px solid #efd29a; border-radius:14px; padding:14px 16px; box-shadow: 0 8px 18px rgba(97, 63, 12, 0.08);'>
+            <h3 class="header" style="color:#c88917; font-size:19px;"><strong>DATA INFORMATION</strong></h3>
             <table>
                 <tr><td style="font-size:16px; font-family: sans-serif;">Model's Prediction Column</td><td>:</td><td style="color: darkgray; font-size:16px; font-family: sans-serif;">{label_col}</td></tr>
                 <tr><td style="font-size:16px; font-family: sans-serif;">Favorable Outcome</td><td>:</td><td style="color: darkgray; font-size:16px; font-family: sans-serif;">{favorable_outcome}</td></tr>
@@ -291,15 +291,15 @@ class SuccessRateService:
                         ax1.text(bar.get_x() + bar.get_width() / 2, height + 1, f'{population_success_rates[i]:.2f}%', ha='center', va='bottom', fontsize=10, color='black')
 
                 # Preventing label overlap for grouped success rate values
-                line_success_rate = ax1.plot(x + bar_width / 2, grouped_success_rates, marker='o', color='#963596', label='Grouped Success Rate')
+                line_success_rate = ax1.plot(x + bar_width / 2, grouped_success_rates, marker='o', color='#c88917', label='Grouped Success Rate')
                 for i, rate in enumerate(grouped_success_rates):
                     # Check if there's existing text near this position
                     existing_texts = [t for t in ax1.texts if abs(t.get_position()[0] - (x[i] + bar_width / 2)) < 0.1 and abs(t.get_position()[1] - rate) < 5]
                     # If there is overlap, shift the text upwards
                     if existing_texts:
-                        ax1.text(x[i] + bar_width / 2, rate + 7, f'{rate:.2f}%', ha='center', va='bottom', fontsize=10, color='#963596')
+                        ax1.text(x[i] + bar_width / 2, rate + 7, f'{rate:.2f}%', ha='center', va='bottom', fontsize=10, color='#c88917')
                     else:
-                        ax1.text(x[i] + bar_width / 2, rate + 4, f'{rate:.2f}%', ha='center', va='bottom', fontsize=10, color='#963596')
+                        ax1.text(x[i] + bar_width / 2, rate + 4, f'{rate:.2f}%', ha='center', va='bottom', fontsize=10, color='#c88917')
 
                 ax1.set_ylabel('Population (%)')
                 ax1.set_title(f"Population and Success Rate for {attribute}", fontsize=14)

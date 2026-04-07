@@ -349,6 +349,10 @@ class BiasResult:
     
     def analyseHoilisticAIBiasResult(self, taskType, methods, group_unprivileged, group_privileged, predicted_y,
                                      actual_y, protectedAttributes):
+        group_unprivileged = np.asarray(group_unprivileged).reshape(-1)
+        group_privileged = np.asarray(group_privileged).reshape(-1)
+        predicted_y = np.asarray(predicted_y).reshape(-1)
+        actual_y = np.asarray(actual_y).reshape(-1)
 
         protected_list = []
         for i in range(len(protectedAttributes.name)):
@@ -394,16 +398,19 @@ class BiasResult:
         biased = False
         biased_list = []
         if methods!="ALL":
-            List_metric_score = holisticaiMetrics[taskType][methods](group_unprivileged, group_privileged,predicted_y, actual_y)
-            if (methods in list(ref_vals[taskType].keys())):
-                log.info("method name: " + methods)
-                if List_metric_score["value"] != ref_vals[taskType][methods]:
-                    biased = True
-                else:
-                    biased = False    
-            List_metric_score["value"] = str(List_metric_score["value"])
-            biased_list.append(biased)
-            list_metric_results.append(List_metric_score)  
+            try:
+                List_metric_score = holisticaiMetrics[taskType][methods](group_unprivileged, group_privileged,predicted_y, actual_y)
+                if (methods in list(ref_vals[taskType].keys())):
+                    log.info("method name: " + methods)
+                    if List_metric_score["value"] != ref_vals[taskType][methods]:
+                        biased = True
+                    else:
+                        biased = False    
+                List_metric_score["value"] = str(List_metric_score["value"])
+                biased_list.append(biased)
+                list_metric_results.append(List_metric_score)
+            except Exception as metric_error:
+                log.warning(f"Skipping post-train metric {methods} due to error: {metric_error}")
         else:
             methodList=[]
             if taskType == "BINARY CLASSIFICATION":
@@ -416,18 +423,24 @@ class BiasResult:
                         methodList = ["CLUSTER BALANCE", "MINIMUM CLUSTER RATIO", "CLUSTER DISTRIBUTION KL", "CLUSTER DISTRIBUTION TOTAL VARIATION"]
             
             for method in methodList:
-                List_metric_score = holisticaiMetrics[taskType][method](group_unprivileged, group_privileged,predicted_y, actual_y)
-                if (method in list(ref_vals[taskType].keys())):
-                    if List_metric_score["value"] != ref_vals[taskType][method]:
-                        biased = True
-                    else:
-                        biased = False    
-                List_metric_score["value"] = str(List_metric_score["value"])
-                biased_list.append(biased)
-                list_metric_results.append(List_metric_score)  
+                try:
+                    List_metric_score = holisticaiMetrics[taskType][method](group_unprivileged, group_privileged,predicted_y, actual_y)
+                    if (method in list(ref_vals[taskType].keys())):
+                        if List_metric_score["value"] != ref_vals[taskType][method]:
+                            biased = True
+                        else:
+                            biased = False    
+                    List_metric_score["value"] = str(List_metric_score["value"])
+                    biased_list.append(biased)
+                    list_metric_results.append(List_metric_score)
+                except Exception as metric_error:
+                    log.warning(f"Skipping post-train metric {method} due to error: {metric_error}")
             # for i in range(len(holisticaiMetrics[taskType][methods])):
             #     List_metric_score = holisticaiMetrics[taskType][methods][i](group_unprivileged, group_privileged,
             #                                                                 predicted_y, actual_y)
+
+        if not list_metric_results:
+            raise ValueError("All post-train fairness metrics failed for the given dataset.")
             #     if (methods in list(ref_vals[taskType].keys())):
             #         if List_metric_score["value"] != ref_vals[taskType][methods]:
             #             biased = True

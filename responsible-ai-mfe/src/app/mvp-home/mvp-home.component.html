@@ -6,100 +6,50 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 -->
 <div class="mvp-home-page">
   <section class="mvp-home-card">
-    <p class="eyebrow">MVP Evaluation</p>
-    <h1>Trust AI</h1>
-
-    <p class="section-label">Upload your dataset and model</p>
-    <section class="setup-panel">
-      <div class="form-grid compact">
-        <label class="full-width">
-          <span>Dataset File (.csv)</span>
-          <input
-            class="compact-input"
-            type="file"
-            accept=".csv,text/csv"
-            (change)="onDatasetFileSelected($event)"
-          />
-        </label>
-        <label>
-          <span>Dataset Name (optional)</span>
-          <input
-            class="compact-input"
-            type="text"
-            [(ngModel)]="uploadedDatasetName"
-            (ngModelChange)="onUploadedMetaChange()"
-            placeholder="Defaults to file name"
-          />
-        </label>
-
-        <label class="full-width">
-          <span>Model File (.joblib/.pkl)</span>
-          <input
-            class="compact-input"
-            type="file"
-            accept=".joblib,.pkl,application/octet-stream"
-            (change)="onModelFileSelected($event)"
-          />
-        </label>
-        <label>
-          <span>Model Name (optional)</span>
-          <input
-            class="compact-input"
-            type="text"
-            [(ngModel)]="uploadedModelName"
-            (ngModelChange)="onUploadedMetaChange()"
-            placeholder="Defaults to file name"
-          />
-        </label>
-
-        <label>
-          <span>Task Type</span>
-          <select
-            class="compact-input"
-            [(ngModel)]="uploadedTaskType"
-            (ngModelChange)="onUploadedMetaChange()"
-          >
-            <option value="CLASSIFICATION">CLASSIFICATION</option>
-          </select>
-        </label>
-        <label>
-          <span>Target Data Type</span>
-          <select
-            class="compact-input"
-            [(ngModel)]="uploadedTargetDataType"
-            (ngModelChange)="onUploadedMetaChange()"
-          >
-            <option value="Tabular">Tabular</option>
-          </select>
-        </label>
-        <label>
-          <span>Target Classifier</span>
-          <input
-            class="compact-input"
-            type="text"
-            [(ngModel)]="uploadedTargetClassifier"
-            (ngModelChange)="onUploadedMetaChange()"
-            placeholder="Example: LogisticRegression"
-          />
-        </label>
+    <div class="brand-header">
+      <div class="brand-lockup">
+        <img class="brand-logo" src="assets/logo/logo.png" alt="Trust AI logo" />
       </div>
-      <p class="hint-line">Model and dataset names can be different.</p>
-    </section>
-
-    <p class="section-label">How you want to evaluate your model?</p>
-    <div class="evaluation-list" role="group" aria-label="Evaluation types">
-      <label class="evaluation-item" *ngFor="let evaluationType of evaluationOptions">
-        <input
-          type="checkbox"
-          [checked]="selectedEvaluations.includes(evaluationType)"
-          (change)="onEvaluationToggle(evaluationType, $any($event.target).checked)"
-        />
-        <span>{{ evaluationType }}</span>
-      </label>
     </div>
 
-    <section class="setup-panel" *ngIf="isExplainabilitySelected">
+    <div class="evaluation-list tab-list" role="tablist" aria-label="Evaluation tabs">
+      <button
+        type="button"
+        class="evaluation-item tab-button"
+        *ngFor="let tabName of tabNames"
+        [class.active]="activeTab === tabName"
+        [attr.aria-selected]="activeTab === tabName"
+        (click)="setActiveTab(tabName)"
+      >
+        <span>{{ tabName }}</span>
+      </button>
+    </div>
+
+    <section class="setup-panel" *ngIf="isExplainabilityTab">
       <h3>Explainability Setup</h3>
+      <p class="section-label">Using dataset: <strong>banking_loan_training.csv</strong></p>
+      <div class="form-grid compact">
+        <label>
+          <span>Target Classifier</span>
+          <select
+            class="compact-input"
+            [(ngModel)]="uploadedTargetClassifier"
+            (ngModelChange)="onUploadedMetaChange()"
+          >
+            <optgroup
+              *ngFor="let classifierGroup of classifierOptionGroups"
+              [label]="classifierGroup.label"
+            >
+              <option
+                *ngFor="let classifierOption of classifierGroup.options"
+                [value]="classifierOption.value"
+              >
+                {{ classifierOption.value }}
+              </option>
+            </optgroup>
+          </select>
+        </label>
+      </div>
       <label class="inline-toggle">
         <input type="checkbox" [(ngModel)]="showExplainPreview" />
         <span>Show in-page explanation preview</span>
@@ -118,9 +68,32 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       <p class="hint-line">Default runs report only (faster and more stable).</p>
     </section>
 
-    <section class="setup-panel" *ngIf="isFairnessSelected">
+    <section class="setup-panel" *ngIf="isFairnessTab">
       <h3>Fairness Setup</h3>
       <div class="form-grid compact">
+        <label>
+          <span>Dataset</span>
+          <select class="compact-input" [(ngModel)]="selectedFairnessDatasetKey" (ngModelChange)="onFairnessDatasetChange()">
+            <option *ngFor="let fairnessDatasetOption of fairnessDatasetOptions" [value]="fairnessDatasetOption.key">
+              {{ fairnessDatasetOption.label }}
+            </option>
+          </select>
+        </label>
+        <label>
+          <span>Bias Type</span>
+          <select [(ngModel)]="fairnessBiasType" (ngModelChange)="onFairnessBiasTypeChange()" class="compact-input">
+            <option value="PRETRAIN">PRETRAIN</option>
+            <option value="POSTTRAIN">POSTTRAIN</option>
+          </select>
+        </label>
+        <label>
+          <span>Method Type</span>
+          <select [(ngModel)]="fairnessMethodType" class="compact-input">
+            <option *ngFor="let methodOption of fairnessMethodOptions" [value]="methodOption.value">
+              {{ methodOption.label }}
+            </option>
+          </select>
+        </label>
         <label>
           <span>Label</span>
           <input class="compact-input" type="text" [(ngModel)]="fairnessLabel" />
@@ -135,7 +108,16 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
             class="compact-input"
             type="text"
             [(ngModel)]="fairnessProtectedAttributesInput"
-            placeholder="Example: CODE_GENDER"
+            placeholder="Example: gender"
+          />
+        </label>
+        <label class="full-width" *ngIf="fairnessBiasType === 'POSTTRAIN'">
+          <span>Prediction Label</span>
+          <input
+            class="compact-input"
+            type="text"
+            [(ngModel)]="fairnessPredLabel"
+            placeholder="Example: labels_pred"
           />
         </label>
       </div>
@@ -143,19 +125,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       <details class="advanced-panel">
         <summary>Advanced fairness options</summary>
         <div class="form-grid">
-        <label>
-          <span>Bias Type</span>
-          <select [(ngModel)]="fairnessBiasType" class="compact-input">
-            <option value="PRETRAIN">PRETRAIN</option>
-            <option value="POSTTRAIN">POSTTRAIN</option>
-          </select>
-        </label>
-        <label>
-          <span>Method Type</span>
-          <select [(ngModel)]="fairnessMethodType" class="compact-input">
-            <option value="ALL">ALL (All Metrics)</option>
-          </select>
-        </label>
         <label>
           <span>Task Type</span>
           <select [(ngModel)]="fairnessTaskType" class="compact-input">
@@ -173,32 +142,27 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
         </label>
         </div>
       </details>
+      <p class="hint-line">Dataset presets fill these fields automatically. You can still adjust them before evaluation.</p>
     </section>
 
-    <section class="setup-panel" *ngIf="isRobustnessSelected">
-      <h3>Robustness Setup</h3>
-      <p class="section-label" style="color: #d9534f; font-weight: bold;">Testing with ProjectedGradientDescentTabular (HARDCODED - Attack list dropdown disabled for debugging)</p>
-      <!-- TEMPORARILY DISABLED: Attack selection dropdown
-      <p class="section-label">Select Attack Types</p>
-      <div class="attack-list" role="group" aria-label="Attack types">
-        <label class="attack-item" *ngFor="let attackName of robustnessAttackOptions">
-          <input
-            type="checkbox"
-            [checked]="selectedRobustnessAttacks.includes(attackName)"
-            (change)="onRobustnessAttackToggle(attackName, $any($event.target).checked)"
-          />
-          <span>{{ attackName }}</span>
-        </label>
-      </div>
-      -->
-    </section>
-
-    <p class="linked-model" *ngIf="selectedModel">
+    <p class="linked-model" *ngIf="isExplainabilityTab && selectedModel">
       Linked model: <strong>{{ selectedModel }}</strong>
     </p>
 
-    <button type="button" class="evaluate-button" [disabled]="!canEvaluate" (click)="onEvaluateModel()">
-      {{ evaluationInProgress ? 'Running Evaluation...' : 'Evaluate Model' }}
+    <button
+      *ngIf="shouldShowEvaluateButton"
+      type="button"
+      class="evaluate-button"
+      [disabled]="!canEvaluate"
+      (click)="onEvaluateModel()"
+    >
+      {{
+        evaluationInProgress
+          ? 'Running Evaluation...'
+          : isExplainabilityTab
+            ? 'Evaluate Explainability'
+            : 'Evaluate Fairness'
+      }}
     </button>
 
     <section class="status-stack" *ngIf="evaluationInProgress || evaluationError || evaluationSuccess || reportStatus">

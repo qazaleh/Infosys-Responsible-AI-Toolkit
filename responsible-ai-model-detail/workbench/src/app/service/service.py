@@ -47,6 +47,62 @@ class AttributeDict(dict):
     __setattr__ = dict.__setitem__
     __delattr__ = dict.__delitem__
 
+
+def infer_model_metadata_from_payload(payload, file_extension: str):
+    target_classifier = str(payload.get("targetClassifier", "")).strip()
+    model_name = str(payload.get("modelName", "")).strip()
+
+    if target_classifier == "KerasClassifier":
+        return "Keras", model_name or "KerasModel"
+    if target_classifier == "SklearnAPIClassifier":
+        return "API", model_name or "SklearnApiModel"
+    if target_classifier == "SklearnClassifier":
+        return "Scikit-learn", model_name or "SklearnModel"
+
+    if file_extension == "h5":
+        return "Keras", model_name or "KerasModel"
+    if file_extension in ("pkl", "joblib", "pickle"):
+        return "Scikit-learn", model_name or "SklearnModel"
+    if file_extension == "zip":
+        return "Transformers", model_name or "LLM"
+
+    return "Unknown", model_name or "Model"
+
+
+def detect_uploaded_model_metadata(file_bytes: bytes, file_extension: str, payload):
+    file_extension = str(file_extension or "").lower()
+
+    if file_extension in ("pkl", "joblib", "pickle"):
+        try:
+            model = joblib.load(BytesIO(file_bytes))
+            algorithm = type(model).__name__
+            if algorithm == 'Pipeline':
+                algorithm = str(model.steps[-1][1])
+            modelFramework = "Scikit-learn"
+            if 'arima' in algorithm.lower():
+                modelFramework = "Statsmodels"
+            return modelFramework, algorithm
+        except Exception as exc:
+            log.warning(f"Falling back to payload-based model metadata because joblib load failed: {exc}")
+            return infer_model_metadata_from_payload(payload, file_extension)
+
+    if file_extension == "zip":
+        return "Transformers", "LLM"
+
+    if file_extension == "h5":
+        with open('model.h5', 'wb') as f:
+            f.write(file_bytes)
+        try:
+            model = keras.models.load_model('model.h5')
+            algorithm = type(model).__name__
+            modelFramework = "Keras"
+            return modelFramework, algorithm
+        finally:
+            if os.path.exists('model.h5'):
+                os.remove('model.h5')
+
+    return None, None
+
 db_type = os.getenv('DB_TYPE').lower()
 class InfosysRAI:
 
@@ -393,26 +449,13 @@ class InfosysRAI:
                         # modelId = str(modelFileId)
                         model_file = FileStoreDb.fs.get(modelFileId)
                         model_file_extension = Payload1["fileName"].split('.')[-1].lower()
-                        if model_file_extension in ("pkl", "joblib", "pickle"):
-                            model = joblib.load(BytesIO(model_file.read()))
-                            algorithm = type(model).__name__
-                            if algorithm =='Pipeline':
-                                algorithm = str(model.steps[-1][1])
-                            modelFramework = "Scikit-learn"
-                            if 'arima' in algorithm.lower():
-                                modelFramework = "Statsmodels"
-                        elif model_file_extension == "zip":
-                            algorithm = "LLM" # need to be updated later
-                            modelFramework = "Transformers"
-                        elif model_file_extension == "h5":
-                            # Write the data to a file
-                            with open('model.h5', 'wb') as f:
-                                f.write(model_file.read())
-                            model = keras.models.load_model('model.h5')
-                            os.remove('model.h5')
-                            algorithm = type(model).__name__
-                            modelFramework = "Keras"
-                        else:
+                        model_file_bytes = model_file.read()
+                        modelFramework, algorithm = detect_uploaded_model_metadata(
+                            model_file_bytes,
+                            model_file_extension,
+                            Payload1
+                        )
+                        if not modelFramework or not algorithm:
                             return "Unsupported model file type. Supported file types are pkl/joblib/pickle/h5/zip"
                         
                         Payload1["modelFramework"] = modelFramework
@@ -484,29 +527,12 @@ class InfosysRAI:
                         print(type(responseGet.content),"MODEL BLOB TYPE")
                         # dataFileId = FileStoreDb
                         model_file_extension = Payload1["fileName"].split('.')[-1].lower()
-                        if model_file_extension in ("pkl", "joblib", "pickle"):
-                            modelFileObj = responseGet.content
-                            model = joblib.load(BytesIO(modelFileObj))
-                            algorithm = type(model).__name__
-                            if algorithm =='Pipeline':
-                                algorithm = str(model.steps[-1][1])
-                            modelFramework = "Scikit-learn"
-                            if 'arima' in algorithm.lower():
-                                modelFramework = "Statsmodels"
-                        elif model_file_extension == "zip":
-                            algorithm = "LLM" # need to be updated later
-                            modelFramework = "Transformers"
-                        elif model_file_extension == "h5":
-                            modelFileObj = responseGet.content
-                            print(" IN MODEL H5")
-                            # Write the data to a file
-                            with open('model.h5', 'wb') as f:
-                                f.write(modelFileObj)
-                            model = keras.models.load_model('model.h5')
-                            os.remove('model.h5')
-                            algorithm = type(model).__name__
-                            modelFramework = "Keras"
-                        else:
+                        modelFramework, algorithm = detect_uploaded_model_metadata(
+                            responseGet.content,
+                            model_file_extension,
+                            Payload1
+                        )
+                        if not modelFramework or not algorithm:
                             return "Unsupported model file type. Supported file types are pkl/joblib/pickle/h5/zip"
                         Payload1["modelFramework"] = modelFramework
                         Payload1["algorithm"] = algorithm
@@ -731,10 +757,6 @@ class InfosysRAI:
                 tenantId = Tenet.findOne(tenetName)
                 ## DATA CREATION FROM BATCH FOR FAIRNESS
                 if(tenetName=="Fairness"):
-                    def send_fairnress_request(batch_id):
-                        print(batch_id,"Fairness batch_id")
-                        response = requests.post(fairnessgeneration, batch_id, verify = sslv[sslVerify])
-                        print("Fairness Response", response)
                     fairnessTenetId = Tenet.findOne("Fairness")
                     data_attribute_names = ["biasType", "methodType", "taskType", "label", "favorableOutcome", "protectedAttribute", "privilegedGroup","mitigationType","mitigationTechnique", "predLabel", "knn","sensitiveFeatures","favourableLabel"]
                     batchedTenetId = Batch.create(payload,tenantId)
@@ -753,11 +775,10 @@ class InfosysRAI:
                             del payloadInDictionary['DataAttributevalues']
                             del payloadInDictionary['BatchId']
                             print("DATA INSERTED IN DATA ATTRIBUTE VALUES FOR FAIRNESS")
-                    # Trigger the API call asynchronously using a separate thread
-                    print(fairnessDataAdd, "Fairness generated ID")
-                    with concurrent.futures.ThreadPoolExecutor() as executor:
-                        executor.submit(send_fairnress_request, batchedTenetId['BatchId'])
-                    print("Fairness batch completed")
+                    # Fairness execution is triggered explicitly by the frontend/service layer
+                    # after batch metadata is fully created. Starting it here causes duplicate
+                    # overlapping runs and stale report races.
+                    print("Fairness batch metadata prepared")
                     batchedTenetIds.append({"BatchId": batchedTenetId["BatchId"], "TenetId": tenantId})
                     uniqueBatchIds.add(batchedTenetId['BatchId'])
                     # print("batchedTenetIdsFair===",batchedTenetIds)
@@ -795,10 +816,6 @@ class InfosysRAI:
                     uniqueBatchIds.add(batchedTenetId['BatchId'])
                 ## MODEL CREATION DATA FROM BATCH FOR FAIRNESS
                 if(tenetName=="Fairness"):
-                    def send_fairnress_request(batch_id):
-                        print(batch_id,"Fairness batch_id")
-                        response = requests.post(fairnessgeneration, batch_id, verify = sslv[sslVerify])
-                        print("Fairness Response", response)
                     fairnessTenetId = Tenet.findOne("Fairness")
                     data_attribute_names = ["label"]
                     batchedTenetId = fairnessBatchIdValidation
@@ -815,11 +832,7 @@ class InfosysRAI:
                             del payloadInDictionary['ModelAttributevalues']
                             del payloadInDictionary['BatchId']
                             print("DATA INSERTED IN DATA ATTRIBUTE VALUES FOR FAIRNESS")
-                    # Trigger the API call asynchronously using a separate thread
-                    print(fairnessDataAdd, "Fairness generated ID")
-                    with concurrent.futures.ThreadPoolExecutor() as executor:
-                        executor.submit(send_fairnress_request, batchedTenetId['BatchId'])
-                    print("Fairness batch completed")
+                    print("Fairness model metadata prepared")
                     if batchedTenetId["BatchId"] not in uniqueBatchIds:
                         # Add the BatchId to the set
                         uniqueBatchIds.add(batchedTenetId["BatchId"])

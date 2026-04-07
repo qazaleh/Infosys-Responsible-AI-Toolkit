@@ -22,6 +22,47 @@ interface DatasetOption {
   targetClassifier: string;
 }
 
+interface ClassifierOptionGroup {
+  label: string;
+  options: Array<{
+    value: string;
+    normalizedClassifier: string;
+  }>;
+}
+
+interface ClassifierModelAsset {
+  classifierLabel: string;
+  normalizedClassifier: string;
+  modelFileName: string;
+  modelAssetPath: string;
+}
+
+interface FairnessPresetConfig {
+  label: string;
+  favorableOutcome: string;
+  protectedAttributesInput: string;
+  privilegedGroupsInput: string;
+  predLabel?: string;
+}
+
+interface FairnessDatasetOption {
+  key: string;
+  label: string;
+  datasetName: string;
+  datasetFileName: string;
+  datasetAssetPath: string;
+  hiddenModelLabel: string;
+  presets: {
+    PRETRAIN: FairnessPresetConfig;
+    POSTTRAIN?: FairnessPresetConfig;
+  };
+}
+
+interface FairnessMethodOption {
+  value: string;
+  label: string;
+}
+
 interface ApiConfig {
   workbenchData: string;
   workbenchModel: string;
@@ -63,6 +104,13 @@ interface TenetRunStatus {
   styleUrls: ['./mvp-home.component.css'],
 })
 export class MvpHomeComponent {
+  readonly tabNames: Array<'Explainability' | 'Fairness'> = [
+    'Explainability',
+    'Fairness',
+  ];
+  private readonly fixedDatasetAssetPath = 'assets/dataset/banking_loan_training.csv';
+  private readonly fixedDatasetFileName = 'banking_loan_training.csv';
+  private readonly fixedDatasetName = 'banking_loan_training';
   private readonly fallbackApiConfig: ApiConfig = {
     workbenchData: 'http://localhost:30020/v1/workbench/data',
     workbenchModel: 'http://localhost:30020/v1/workbench/model',
@@ -81,19 +129,112 @@ export class MvpHomeComponent {
   private readonly remoteConfigHostKeywords: string[] = ['rai-toolkit-dev.az.ad.idemo-ppc.com'];
 
   apiConfig: ApiConfig = this.fallbackApiConfig;
+  activeTab: 'Explainability' | 'Fairness' | 'Robustness' = 'Explainability';
   datasetOptions: DatasetOption[] = [];
-  evaluationOptions: string[] = ['Explainability', 'Fairness', 'Robustness'];
 
   selectedDataset = '';
   selectedModel = '';
   selectedEvaluations: string[] = [];
-  uploadedDatasetFile: File | null = null;
-  uploadedModelFile: File | null = null;
-  uploadedDatasetName = '';
-  uploadedModelName = '';
-  uploadedTaskType = 'CLASSIFICATION';
-  uploadedTargetDataType = 'Tabular';
   uploadedTargetClassifier = 'LogisticRegression';
+  readonly classifierModelAssets: ClassifierModelAsset[] = [
+    {
+      classifierLabel: 'LogisticRegression',
+      normalizedClassifier: 'SklearnClassifier',
+      modelFileName: 'sklearn_logistic_regression_f3ca733a.joblib',
+      modelAssetPath: 'assets/modelsList/sklearn_logistic_regression_f3ca733a.joblib'
+    },
+    {
+      classifierLabel: 'RandomForestClassifier',
+      normalizedClassifier: 'SklearnClassifier',
+      modelFileName: 'sklearn_random_forest_befd3c93.joblib',
+      modelAssetPath: 'assets/modelsList/sklearn_random_forest_befd3c93.joblib'
+    }
+  ];
+  readonly classifierOptionGroups: ClassifierOptionGroup[] = [
+    {
+      label: 'Scikit-learn Classifiers',
+      options: [
+        { value: 'LogisticRegression', normalizedClassifier: 'SklearnClassifier' },
+        { value: 'RandomForestClassifier', normalizedClassifier: 'SklearnClassifier' }
+      ]
+    }
+  ];
+  readonly fairnessDatasetOptions: FairnessDatasetOption[] = [
+    {
+      key: 'fairness-banking-loan',
+      label: 'Banking Loan Fairness Dataset',
+      datasetName: 'banking_loan_predictions',
+      datasetFileName: 'banking_loan_predictions.csv',
+      datasetAssetPath: 'assets/dataset/fairnessDatasets/banking_loan_predictions.csv',
+      hiddenModelLabel: 'LogisticRegression',
+      presets: {
+        PRETRAIN: {
+          label: 'approved',
+          favorableOutcome: '1',
+          protectedAttributesInput: 'gender',
+          privilegedGroupsInput: 'M',
+        },
+        POSTTRAIN: {
+          label: 'approved',
+          favorableOutcome: '1',
+          protectedAttributesInput: 'gender',
+          privilegedGroupsInput: 'M',
+          predLabel: 'pred_label',
+        },
+      },
+    },
+    {
+      key: 'fairness-insurance-claims',
+      label: 'Insurance Claims Fairness Dataset',
+      datasetName: 'insurance_claims_predictions',
+      datasetFileName: 'insurance_claims_predictions.csv',
+      datasetAssetPath: 'assets/dataset/fairnessDatasets/insurance_claims_predictions.csv',
+      hiddenModelLabel: 'LogisticRegression',
+      presets: {
+        PRETRAIN: {
+          label: 'suspected_fraud',
+          favorableOutcome: '1',
+          protectedAttributesInput: 'region',
+          privilegedGroupsInput: 'North',
+        },
+        POSTTRAIN: {
+          label: 'suspected_fraud',
+          favorableOutcome: '1',
+          protectedAttributesInput: 'region',
+          privilegedGroupsInput: 'North',
+          predLabel: 'pred_label',
+        },
+      },
+    },
+  ];
+  readonly fairnessMethodOptionsByBiasType: Record<'PRETRAIN' | 'POSTTRAIN', FairnessMethodOption[]> = {
+    PRETRAIN: [
+      { value: 'ALL', label: 'ALL (All Metrics)' },
+      { value: 'STATISTICAL-PARITY-DIFFERENCE', label: 'Statistical Parity Difference' },
+      { value: 'DISPARATE-IMPACT', label: 'Disparate Impact' },
+      {
+        value: 'SMOOTHED_EMPIRICAL_DIFFERENTIAL_FAIRNESS',
+        label: 'Smoothed Empirical Differential Fairness',
+      },
+      { value: 'CONSISTENCY', label: 'Consistency' },
+    ],
+    POSTTRAIN: [
+      { value: 'ALL', label: 'ALL (All Metrics)' },
+      { value: 'STATISTICAL_PARITY', label: 'Statistical Parity' },
+      { value: 'DISPARATE_IMPACT', label: 'Disparate Impact' },
+      { value: 'FOUR_FIFTHS_RULE', label: 'Four Fifths Rule' },
+      { value: 'COHEN_D', label: 'Cohen D' },
+      { value: 'EQUAL_OPPORTUNITY_DIFFERENCE', label: 'Equal Opportunity Difference' },
+      { value: 'FALSE_POSITIVE_RATE_DIFFERENCE', label: 'False Positive Rate Difference' },
+      { value: 'FALSE_NEGATIVE_RATE_DIFFERENCE', label: 'False Negative Rate Difference' },
+      { value: 'TRUE_NEGATIVE_RATE_DIFFERENCE', label: 'True Negative Rate Difference' },
+      { value: 'AVERAGE_ODDS_DIFFERENCE', label: 'Average Odds Difference' },
+      { value: 'ACCURACY_DIFFERENCE', label: 'Accuracy Difference' },
+      { value: 'Z_TEST_DIFFERENCE', label: 'Z Test Difference' },
+      { value: 'ABROCA', label: 'ABROCA' },
+    ],
+  };
+  selectedFairnessDatasetKey = 'fairness-banking-loan';
 
   explainSampleLimit = 3;
   showExplainPreview = false;
@@ -103,6 +244,7 @@ export class MvpHomeComponent {
   fairnessMethodType = 'ALL';
   fairnessTaskType = 'CLASSIFICATION';
   fairnessLabel = '';
+  fairnessPredLabel = 'labels_pred';
   fairnessFavorableOutcome = '1';
   fairnessProtectedAttributesInput = '';
   fairnessPrivilegedGroupsInput = '';
@@ -141,6 +283,10 @@ export class MvpHomeComponent {
   constructor(private http: HttpClient) {}
 
   ngOnInit(): void {
+    this.selectedModel = this.getSelectedClassifierModelAsset()?.modelFileName || '';
+    this.applyFairnessPreset();
+    void this.loadFixedDatasetColumns();
+    void this.refreshRobustnessAttackOptions();
     this.loadApiConfigFromAdmin();
   }
 
@@ -148,19 +294,35 @@ export class MvpHomeComponent {
     if (this.evaluationInProgress) {
       return false;
     }
-    return Boolean(this.uploadedDatasetFile && this.uploadedModelFile) && this.selectedEvaluations.length > 0;
+    if (this.activeTab === 'Robustness') {
+      return false;
+    }
+    if (this.activeTab === 'Explainability') {
+      return this.buildExplainabilityDatasetOption() !== null;
+    }
+    return this.validateFairnessInputs(false);
   }
 
-  get isExplainabilitySelected(): boolean {
-    return this.selectedEvaluations.includes('Explainability');
+  get shouldShowEvaluateButton(): boolean {
+    if (this.evaluationInProgress) {
+      return true;
+    }
+    if (this.activeTab === 'Robustness') {
+      return false;
+    }
+    return this.canEvaluate;
   }
 
-  get isFairnessSelected(): boolean {
-    return this.selectedEvaluations.includes('Fairness');
+  get isExplainabilityTab(): boolean {
+    return this.activeTab === 'Explainability';
   }
 
-  get isRobustnessSelected(): boolean {
-    return this.selectedEvaluations.includes('Robustness');
+  get isFairnessTab(): boolean {
+    return this.activeTab === 'Fairness';
+  }
+
+  get isRobustnessTab(): boolean {
+    return this.activeTab === 'Robustness';
   }
 
   get availableDownloadTenets(): string[] {
@@ -173,38 +335,41 @@ export class MvpHomeComponent {
     return !this.evaluationInProgress && this.availableDownloadTenets.length > 0;
   }
 
+  get fairnessMethodOptions(): FairnessMethodOption[] {
+    return (
+      this.fairnessMethodOptionsByBiasType[this.fairnessBiasType as 'PRETRAIN' | 'POSTTRAIN'] ||
+      this.fairnessMethodOptionsByBiasType.PRETRAIN
+    );
+  }
+
   get shouldShowDownloadTenetPicker(): boolean {
     return !this.evaluationInProgress && this.availableDownloadTenets.length > 1;
   }
 
-  onDatasetFileSelected(event: Event): void {
-    const inputElement = event.target as HTMLInputElement;
-    const selectedFile = inputElement?.files?.[0] || null;
-    this.uploadedDatasetFile = selectedFile;
-    if (selectedFile && !this.uploadedDatasetName.trim()) {
-      this.uploadedDatasetName = this.stripExtension(selectedFile.name);
-    }
-    this.resetEvaluationState();
-    this.datasetColumns = [];
-    void this.loadDatasetColumnsForUploadedFile();
-    void this.refreshRobustnessAttackOptions();
-  }
-
-  onModelFileSelected(event: Event): void {
-    const inputElement = event.target as HTMLInputElement;
-    const selectedFile = inputElement?.files?.[0] || null;
-    this.uploadedModelFile = selectedFile;
-    this.selectedModel = selectedFile?.name || '';
-    if (selectedFile && !this.uploadedModelName.trim()) {
-      this.uploadedModelName = this.stripExtension(selectedFile.name);
-    }
-    this.resetEvaluationState();
-    void this.refreshRobustnessAttackOptions();
-  }
-
   onUploadedMetaChange(): void {
+    this.selectedModel = this.getSelectedClassifierModelAsset()?.modelFileName || '';
     this.resetEvaluationState();
     void this.refreshRobustnessAttackOptions();
+  }
+
+  setActiveTab(tabName: 'Explainability' | 'Fairness' | 'Robustness'): void {
+    this.activeTab = tabName;
+    this.resetEvaluationState();
+    if (tabName === 'Fairness') {
+      this.applyFairnessPreset();
+    }
+  }
+
+  onFairnessDatasetChange(): void {
+    this.applyFairnessPreset();
+    void this.loadFairnessDatasetColumns();
+    this.resetEvaluationState();
+  }
+
+  onFairnessBiasTypeChange(): void {
+    this.normalizeFairnessMethodType();
+    this.applyFairnessPreset();
+    this.resetEvaluationState();
   }
 
   onDatasetChange(datasetLabel: string): void {
@@ -219,7 +384,13 @@ export class MvpHomeComponent {
 
   onEvaluationToggle(evaluationType: string, isChecked: boolean): void {
     if (isChecked && !this.selectedEvaluations.includes(evaluationType)) {
-      this.selectedEvaluations = [...this.selectedEvaluations, evaluationType];
+      let nextSelections = [...this.selectedEvaluations, evaluationType];
+      if (evaluationType === 'Fairness') {
+        nextSelections = nextSelections.filter(
+          (selectedEvaluation) => selectedEvaluation !== 'Explainability'
+        );
+      }
+      this.selectedEvaluations = nextSelections;
       if (evaluationType === 'Robustness') {
         void this.refreshRobustnessAttackOptions();
       }
@@ -252,9 +423,17 @@ export class MvpHomeComponent {
       return;
     }
 
-    const selectedDatasetOption = this.buildUploadedDatasetOption();
+    if (this.activeTab === 'Robustness') {
+      this.evaluationError = 'Robustness tab is intentionally empty for now.';
+      return;
+    }
+
+    const selectedDatasetOption =
+      this.activeTab === 'Fairness'
+        ? this.buildFairnessDatasetOption()
+        : this.buildExplainabilityDatasetOption();
     if (!selectedDatasetOption) {
-      this.evaluationError = 'Upload both dataset and model files before evaluation.';
+      this.evaluationError = 'Dataset or classifier configuration is not available for evaluation.';
       return;
     }
 
@@ -278,11 +457,23 @@ export class MvpHomeComponent {
 
     try {
       const userId = this.getLoggedInUser();
-      const datasetFile = this.uploadedDatasetFile;
-      const modelFile = this.uploadedModelFile;
-      if (!datasetFile || !modelFile) {
-        throw new Error('Upload both dataset and model files before evaluation.');
+      const selectedModelAsset =
+        this.activeTab === 'Fairness'
+          ? this.getFairnessModelAsset(selectedDatasetOption)
+          : this.getSelectedClassifierModelAsset();
+      if (!selectedModelAsset) {
+        throw new Error('Choose a supported classifier before evaluation.');
       }
+      const datasetFile = await this.fetchAssetFile(
+        selectedDatasetOption.datasetAssetPath,
+        selectedDatasetOption.datasetFileName,
+        'text/csv'
+      );
+      const modelFile = await this.fetchAssetFile(
+        selectedModelAsset.modelAssetPath,
+        selectedModelAsset.modelFileName,
+        'application/octet-stream'
+      );
       const detectedTargetLabel = await this.detectTargetLabel(datasetFile);
       if (!this.fairnessLabel.trim()) {
         this.fairnessLabel = detectedTargetLabel;
@@ -309,7 +500,7 @@ export class MvpHomeComponent {
       const runErrors: string[] = [];
       const runSuccess: string[] = [];
 
-      if (this.selectedEvaluations.includes('Explainability')) {
+      if (this.activeTab === 'Explainability') {
         try {
           await this.runExplainabilityFlow(userId, datasetId, modelId, selectedDatasetOption);
           runSuccess.push('Explainability');
@@ -317,25 +508,13 @@ export class MvpHomeComponent {
           runErrors.push(`Explainability: ${this.resolveErrorMessage(error)}`);
           this.setTenetStatus('Explainability', 'error', this.resolveErrorMessage(error));
         }
-      }
-
-      if (this.selectedEvaluations.includes('Fairness')) {
+      } else if (this.activeTab === 'Fairness') {
         try {
           await this.runFairnessFlow(userId, datasetId, modelId, detectedTargetLabel, selectedDatasetOption);
           runSuccess.push('Fairness');
         } catch (error: any) {
           runErrors.push(`Fairness: ${this.resolveErrorMessage(error)}`);
           this.setTenetStatus('Fairness', 'error', this.resolveErrorMessage(error));
-        }
-      }
-
-      if (this.selectedEvaluations.includes('Robustness')) {
-        try {
-          await this.runRobustnessFlow(userId, datasetId, modelId, selectedDatasetOption);
-          runSuccess.push('Robustness');
-        } catch (error: any) {
-          runErrors.push(`Robustness: ${this.resolveErrorMessage(error)}`);
-          this.setTenetStatus('Robustness', 'error', this.resolveErrorMessage(error));
         }
       }
 
@@ -582,6 +761,9 @@ export class MvpHomeComponent {
       mitigationType: this.fairnessMitigationType,
       mitigationTechnique: this.fairnessMitigationTechnique,
     };
+    if (this.fairnessBiasType === 'POSTTRAIN' && this.fairnessPredLabel.trim()) {
+      fairnessPayload.predLabel = this.fairnessPredLabel.trim();
+    }
 
     const batchGenerationResponse: any = await firstValueFrom(
       this.http.post(this.apiConfig.batchGeneration, fairnessPayload)
@@ -1112,6 +1294,10 @@ export class MvpHomeComponent {
     const expectedStem = expectedFileName.replace(/\.[^.]+$/, '');
 
     const matchedRecord = modelRecords.find((modelRecord: any) => {
+      if (!this.isUsableModelRecord(modelRecord)) {
+        return false;
+      }
+
       const modelName = this.normalizeRecordValue(modelRecord?.modelName);
       const fileName = this.normalizeRecordValue(modelRecord?.fileName);
       const fileStem = fileName.replace(/\.[^.]+$/, '');
@@ -1124,6 +1310,18 @@ export class MvpHomeComponent {
       );
     });
     return matchedRecord || null;
+  }
+
+  private isUsableModelRecord(modelRecord: any): boolean {
+    if (!modelRecord || !modelRecord.modelId) {
+      return false;
+    }
+
+    const requiredFields = ['useModelApi', 'taskType', 'targetDataType', 'targetClassifier'];
+    return requiredFields.every((fieldName) => {
+      const fieldValue = String(modelRecord?.[fieldName] || '').trim();
+      return fieldValue.length > 0;
+    });
   }
 
   private normalizeRecordValue(value: any): string {
@@ -1216,7 +1414,7 @@ export class MvpHomeComponent {
     selectedDatasetOption?: DatasetOption
   ): Promise<void> {
     if (!selectedDatasetOption) {
-      await this.loadDatasetColumnsForUploadedFile();
+      await this.loadFixedDatasetColumns();
       return;
     }
 
@@ -1237,14 +1435,14 @@ export class MvpHomeComponent {
     }
   }
 
-  private async loadDatasetColumnsForUploadedFile(): Promise<void> {
-    if (!this.uploadedDatasetFile) {
-      this.datasetColumns = [];
-      return;
-    }
-
+  private async loadFixedDatasetColumns(): Promise<void> {
     try {
-      const csvHeaderSample = await this.uploadedDatasetFile.slice(0, 8192).text();
+      const datasetFile = await this.fetchAssetFile(
+        this.fixedDatasetAssetPath,
+        this.fixedDatasetFileName,
+        'text/csv'
+      );
+      const csvHeaderSample = await datasetFile.slice(0, 8192).text();
       this.datasetColumns = this.extractCsvColumns(csvHeaderSample);
       if (!this.fairnessProtectedAttributesInput && this.datasetColumns.length > 1) {
         const suggested = this.datasetColumns.find((columnName) => columnName !== this.fairnessLabel);
@@ -1287,32 +1485,132 @@ export class MvpHomeComponent {
   }
 
   private async refreshRobustnessAttackOptions(): Promise<void> {
-    const selectedDatasetOption = this.buildUploadedDatasetOption();
+    const selectedDatasetOption = this.buildExplainabilityDatasetOption();
     await this.loadRobustnessAttackOptions(selectedDatasetOption || undefined);
   }
 
-  private buildUploadedDatasetOption(): DatasetOption | null {
-    if (!this.uploadedDatasetFile || !this.uploadedModelFile) {
+  private buildExplainabilityDatasetOption(): DatasetOption | null {
+    const selectedModelAsset = this.getSelectedClassifierModelAsset();
+    if (!selectedModelAsset) {
       return null;
     }
 
-    const datasetFileName = this.uploadedDatasetFile.name;
-    const modelFileName = this.uploadedModelFile.name;
-    const datasetName = this.uploadedDatasetName.trim() || this.stripExtension(datasetFileName);
-    const modelName = this.uploadedModelName.trim() || this.stripExtension(modelFileName);
+    const modelFileName = selectedModelAsset.modelFileName;
+    const modelName = `${this.stripExtension(modelFileName)}_mvp_home`;
 
     return {
-      label: `${datasetName}::${modelName}`,
-      datasetName,
-      datasetFileName,
-      datasetAssetPath: '',
+      label: `${this.fixedDatasetName}::${modelName}`,
+      datasetName: this.fixedDatasetName,
+      datasetFileName: this.fixedDatasetFileName,
+      datasetAssetPath: this.fixedDatasetAssetPath,
       modelName,
       modelFileName,
-      modelAssetPath: '',
-      taskType: this.uploadedTaskType,
-      targetDataType: this.uploadedTargetDataType,
-      targetClassifier: this.resolveTargetClassifier(this.uploadedTargetClassifier),
+      modelAssetPath: selectedModelAsset.modelAssetPath,
+      taskType: 'CLASSIFICATION',
+      targetDataType: 'Tabular',
+      targetClassifier: selectedModelAsset.normalizedClassifier,
     };
+  }
+
+  private buildFairnessDatasetOption(): DatasetOption | null {
+    const fairnessDatasetOption = this.getSelectedFairnessDatasetOption();
+    const selectedModelAsset = this.getFairnessModelAsset();
+    if (!fairnessDatasetOption || !selectedModelAsset) {
+      return null;
+    }
+
+    const modelFileName = selectedModelAsset.modelFileName;
+    const modelName = `${this.stripExtension(modelFileName)}_fairness_hidden`;
+
+    return {
+      label: `${fairnessDatasetOption.datasetName}::${this.fairnessBiasType.toLowerCase()}`,
+      datasetName: fairnessDatasetOption.datasetName,
+      datasetFileName: fairnessDatasetOption.datasetFileName,
+      datasetAssetPath: fairnessDatasetOption.datasetAssetPath,
+      modelName,
+      modelFileName,
+      modelAssetPath: selectedModelAsset.modelAssetPath,
+      taskType: 'CLASSIFICATION',
+      targetDataType: 'Tabular',
+      targetClassifier: selectedModelAsset.normalizedClassifier,
+    };
+  }
+
+  private getSelectedFairnessDatasetOption(): FairnessDatasetOption | null {
+    return (
+      this.fairnessDatasetOptions.find(
+        (fairnessDatasetOption) => fairnessDatasetOption.key === this.selectedFairnessDatasetKey
+      ) || null
+    );
+  }
+
+  private getFairnessModelAsset(selectedDatasetOption?: FairnessDatasetOption | DatasetOption | null): ClassifierModelAsset | null {
+    const hiddenModelLabel =
+      (selectedDatasetOption as FairnessDatasetOption | null)?.hiddenModelLabel || 'LogisticRegression';
+    return (
+      this.classifierModelAssets.find(
+        (classifierModelAsset) => classifierModelAsset.classifierLabel === hiddenModelLabel
+      ) || null
+    );
+  }
+
+  private applyFairnessPreset(): void {
+    const fairnessDatasetOption = this.getSelectedFairnessDatasetOption();
+    if (!fairnessDatasetOption) {
+      return;
+    }
+
+    const preset =
+      fairnessDatasetOption.presets[this.fairnessBiasType as 'PRETRAIN' | 'POSTTRAIN'] ||
+      fairnessDatasetOption.presets.PRETRAIN;
+
+    this.fairnessLabel = preset.label;
+    this.fairnessFavorableOutcome = preset.favorableOutcome;
+    this.fairnessProtectedAttributesInput = preset.protectedAttributesInput;
+    this.fairnessPrivilegedGroupsInput = preset.privilegedGroupsInput;
+    this.fairnessPredLabel = preset.predLabel || 'labels_pred';
+    this.normalizeFairnessMethodType();
+  }
+
+  private normalizeFairnessMethodType(): void {
+    const allowedMethods = this.fairnessMethodOptions.map((methodOption) => methodOption.value);
+    if (!allowedMethods.includes(this.fairnessMethodType)) {
+      this.fairnessMethodType = allowedMethods[0] || 'ALL';
+    }
+  }
+
+  private async loadFairnessDatasetColumns(): Promise<void> {
+    const fairnessDatasetOption = this.getSelectedFairnessDatasetOption();
+    if (!fairnessDatasetOption) {
+      this.datasetColumns = [];
+      return;
+    }
+
+    try {
+      const datasetFile = await this.fetchAssetFile(
+        fairnessDatasetOption.datasetAssetPath,
+        fairnessDatasetOption.datasetFileName,
+        'text/csv'
+      );
+      const csvHeaderSample = await datasetFile.slice(0, 8192).text();
+      this.datasetColumns = this.extractCsvColumns(csvHeaderSample);
+    } catch (_error) {
+      this.datasetColumns = [];
+    }
+  }
+
+  private getSelectedClassifierModelAsset(): ClassifierModelAsset | null {
+    const normalizedSelection = String(this.uploadedTargetClassifier || '').trim().toUpperCase();
+    const matchedAsset = this.classifierModelAssets.find(
+      (classifierModelAsset) =>
+        classifierModelAsset.classifierLabel.toUpperCase() === normalizedSelection
+    );
+
+    if (matchedAsset) {
+      return matchedAsset;
+    }
+
+    return null;
   }
 
   private resolveTargetClassifier(rawClassifier: string): string {
@@ -1321,9 +1619,22 @@ export class MvpHomeComponent {
       return 'SklearnClassifier';
     }
 
+    const configuredClassifier = this.classifierOptionGroups
+      .reduce(
+        (allOptions, classifierGroup) => allOptions.concat(classifierGroup.options),
+        [] as Array<{ value: string; normalizedClassifier: string }>
+      )
+      .find((classifierOption) => classifierOption.value.toUpperCase() === normalized.toUpperCase());
+
+    if (configuredClassifier) {
+      return configuredClassifier.normalizedClassifier;
+    }
+
     const upperValue = normalized.toUpperCase();
     const supportedClassifierIds = new Set([
       'SKLEARNCLASSIFIER',
+      'SKLEARNAPICLASSIFIER',
+      'KERASCLASSIFIER',
       'TENSORFLOWCLASSIFIER',
       'PYTORCHFASTERRCNN',
       'PYTORCHCLASSIFIER',
@@ -1377,12 +1688,30 @@ export class MvpHomeComponent {
   }
 
   private validateFairnessInputsIfNeeded(): boolean {
-    if (!this.selectedEvaluations.includes('Fairness')) {
+    return this.validateFairnessInputs(true);
+  }
+
+  private validateFairnessInputs(updateErrorState: boolean): boolean {
+    if (this.activeTab !== 'Fairness') {
       return true;
     }
     if (!this.fairnessProtectedAttributesInput.trim()) {
-      this.evaluationError =
-        'Fairness requires protected attribute input (for example: CODE_GENDER).';
+      if (updateErrorState) {
+        this.evaluationError =
+          'Fairness requires protected attribute input (for example: gender).';
+      }
+      return false;
+    }
+    if (!this.fairnessLabel.trim()) {
+      if (updateErrorState) {
+        this.evaluationError = 'Fairness requires a label column.';
+      }
+      return false;
+    }
+    if (this.fairnessBiasType === 'POSTTRAIN' && !this.fairnessPredLabel.trim()) {
+      if (updateErrorState) {
+        this.evaluationError = 'Post-train fairness requires a prediction label column.';
+      }
       return false;
     }
     return true;
@@ -1483,10 +1812,14 @@ export class MvpHomeComponent {
       })
     );
 
-    let fileName = `fairness_report_batch_${batchId}`;
+    let fileName = `fairness_report_batch_${batchId}.zip`;
     const contentDisposition = response?.headers?.get('Content-Disposition');
     if (contentDisposition && contentDisposition.includes('filename=')) {
-      fileName = contentDisposition.split('filename=')[1].trim().replace(/"/g, '');
+      const downloadedName = contentDisposition.split('filename=')[1].trim().replace(/"/g, '');
+      const hasGenericName = downloadedName.toLowerCase() === 'report.zip';
+      if (!hasGenericName) {
+        fileName = downloadedName;
+      }
     }
 
     this.downloadBlob(response.body, fileName);
