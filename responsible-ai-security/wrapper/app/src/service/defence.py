@@ -354,10 +354,14 @@ class Defence:
             UT.databaseDelete(temp_path)
 
         except Exception as exc:
+            log.error(
+                f"generateCombinedDenfenseModel FAILED: {type(exc).__name__}: {str(exc)}",
+                exc_info=True,
+            )
             if(telemetry_flg == 'True'):
                 with con.ThreadPoolExecutor() as executor:
                     executor.submit(log.log_error_to_telemetry, "generateCombinedDenfenseModel", exc, apiEndPoint, errorRequestMethod)
-            raise Exception
+            raise
     
     
     def generateCombinedDenfenseModel(payload):
@@ -378,34 +382,28 @@ class Defence:
             max_filename_len = 0
             filenames = []
             shapes = []
+            raw_entries = []
             for filename in os.listdir(payload['report_path']):
                 if filename.endswith('.csv'):
-                    # if filename == payload['modelName']+'.csv':   # reading original dataset
-                    if filename == payload['dataFileName']+'.csv':   # reading original dataset
-                        file_path = os.path.join(payload['report_path'], filename)
-                        df = pd.read_csv(file_path)
+                    file_path = os.path.join(payload['report_path'], filename)
+                    df = pd.read_csv(file_path)
+                    is_original_file = filename == payload['dataFileName'] + '.csv'
+                    if is_original_file:
                         X = df.drop(Output_column, axis=1)
                         Y = df[Output_column]
-                        # print(filename,df.shape)
-                        # print(f'{filename}_output_column',Output_column)
-                        filenames.append(filename)
-                        shapes.append(df.shape)
-                        max_filename_len = max(max_filename_len, len(filename))
-                        
-                    else:                                         # reading attack dataset
-                        file_path = os.path.join(payload['report_path'], filename)
-                        df = pd.read_csv(file_path)
-                        # print(df.columns)
+                    else:
                         X = df.drop(df.columns[-3:], axis=1)
                         Y = df[df.columns[-2]]
-                        # print(filename,df.shape)
-                        # print(f'{filename}_output_column',df.columns[-2]) 
-                        filenames.append(filename)
-                        shapes.append(df.shape)
-                        max_filename_len = max(max_filename_len, len(filename))
 
-                    X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.25, random_state=1)
-                    data_dict[filename] = [X_train, X_test, Y_train, Y_test]  
+                    filenames.append(filename)
+                    shapes.append(df.shape)
+                    max_filename_len = max(max_filename_len, len(filename))
+                    raw_entries.append({
+                        'filename': filename,
+                        'is_original': is_original_file,
+                        'X': X,
+                        'Y': Y,
+                    })
             # print("-"*16,'shape of all available adversarial dataset',"-"*20)
             log.info(f"{'-'*16} shape of all available adversarial dataset {'-'*20}")
             for filename, shape in zip(filenames, shapes):
@@ -413,6 +411,43 @@ class Defence:
                 log.info(f"{filename:<{max_filename_len}} :-  {shape}")           
             # print("-"*80)
             log.info("-"*80)
+
+            attack_entries = [entry for entry in raw_entries if not entry['is_original']]
+            if not attack_entries:
+                raise ValueError("No attack CSV files were available for combined defence model generation.")
+
+            expected_columns = list(attack_entries[0]['X'].columns)
+            for entry in raw_entries:
+                if list(entry['X'].columns) != expected_columns:
+                    log.info(
+                        "Skipping %s for combined defence model due to schema mismatch. "
+                        "Expected columns=%s, actual columns=%s",
+                        entry['filename'],
+                        expected_columns,
+                        list(entry['X'].columns),
+                    )
+                    continue
+
+                X_numeric = entry['X'].apply(pd.to_numeric, errors='coerce')
+                if X_numeric.isnull().any().any():
+                    log.info(
+                        "Skipping %s for combined defence model because features are not fully numeric after coercion.",
+                        entry['filename'],
+                    )
+                    continue
+
+                X_train, X_test, Y_train, Y_test = train_test_split(
+                    X_numeric,
+                    entry['Y'],
+                    test_size=0.25,
+                    random_state=1,
+                )
+                data_dict[entry['filename']] = [X_train, X_test, Y_train, Y_test]
+
+            if not data_dict:
+                raise ValueError(
+                    "No compatible numeric datasets were available for combined defence model generation."
+                )
 
             # Loop through each filename in the dictionary
             all_X_train = []
@@ -490,7 +525,7 @@ class Defence:
             if(telemetry_flg == 'True'):
                 with con.ThreadPoolExecutor() as executor:
                     executor.submit(log.log_error_to_telemetry, "generateCombinedDenfenseModel", exc, apiEndPoint, errorRequestMethod)
-            raise Exception
+            raise
 
 
     def generateDenfenseModelendpoint(payload):

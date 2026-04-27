@@ -1,4 +1,4 @@
-FROM python:3.9.13-slim
+FROM python:3.11.4-slim
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \

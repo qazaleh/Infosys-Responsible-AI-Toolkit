@@ -8,7 +8,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 WORKDIR /app
 
 # Copy requirements first for layer caching
-COPY requirements/requirement.txt requirements.txt
+COPY requirements/requirements.txt requirements.txt
 
 RUN pip install --no-cache-dir -r requirements.txt
 
@@ -22,5 +22,7 @@ RUN useradd --create-home --uid 1000 appuser && \
 USER appuser
 
 WORKDIR /app/src
+
+EXPOSE 8000
 
 CMD ["python3", "main.py"]

@@ -75,6 +75,7 @@ interface ApiConfig {
   fairnessReport: string;
   fairnessDownload: string;
   securityApplicableAttacks: string;
+  securityValidateAttackRun: string;
   securityReport: string;
   downloadWorkReport: string;
 }
@@ -104,13 +105,20 @@ interface TenetRunStatus {
   styleUrls: ['./mvp-home.component.css'],
 })
 export class MvpHomeComponent {
-  readonly tabNames: Array<'Explainability' | 'Fairness'> = [
+  readonly tabNames: Array<'Explainability' | 'Fairness' | 'Robustness'> = [
     'Explainability',
     'Fairness',
+    'Robustness',
   ];
   private readonly fixedDatasetAssetPath = 'assets/dataset/banking_loan_training.csv';
   private readonly fixedDatasetFileName = 'banking_loan_training.csv';
   private readonly fixedDatasetName = 'banking_loan_training';
+  private readonly defaultRobustnessAttacks: string[] = [
+    'ProjectedGradientDescentTabular',
+    'FastGradientMethod',
+    'Deepfool',
+    'CarliniL2Method',
+  ];
   private readonly fallbackApiConfig: ApiConfig = {
     workbenchData: 'http://localhost:30020/v1/workbench/data',
     workbenchModel: 'http://localhost:30020/v1/workbench/model',
@@ -123,6 +131,7 @@ export class MvpHomeComponent {
     fairnessReport: 'http://localhost:8000/api/v1/fairness/wrapper/batchId',
     fairnessDownload: 'http://localhost:8000/api/v1/fairness/wrapper/download',
     securityApplicableAttacks: 'http://localhost:30023/rai/v1/security_workbench/attack',
+    securityValidateAttackRun: 'http://localhost:30023/rai/v1/security_workbench/validateattackrun',
     securityReport: 'http://localhost:30023/rai/v1/security_workbench/runallattacks',
     downloadWorkReport: 'http://localhost:30021/v1/report/downloadreport',
   };
@@ -251,17 +260,8 @@ export class MvpHomeComponent {
   fairnessMitigationType = 'AUDIT';
   fairnessMitigationTechnique = '';
 
-  robustnessAttackOptions: string[] = [
-    'FGSM',
-    'PGD',
-    'DeepFool',
-    'Carlini & Wagner',
-    'AutoAttack',
-    'BIM',
-    'JSMA',
-    'One Pixel Attack'
-  ];
-  selectedRobustnessAttacks: string[] = ['ProjectedGradientDescentTabular']; // HARDCODED FOR DEBUG - Remove attack list UI dropdown
+  robustnessAttackOptions: string[] = [...this.defaultRobustnessAttacks];
+  selectedRobustnessAttacks: string[] = [this.defaultRobustnessAttacks[0]];
 
   datasetColumns: string[] = [];
 
@@ -295,7 +295,10 @@ export class MvpHomeComponent {
       return false;
     }
     if (this.activeTab === 'Robustness') {
-      return false;
+      return (
+        this.buildExplainabilityDatasetOption() !== null &&
+        this.selectedRobustnessAttacks.length > 0
+      );
     }
     if (this.activeTab === 'Explainability') {
       return this.buildExplainabilityDatasetOption() !== null;
@@ -306,9 +309,6 @@ export class MvpHomeComponent {
   get shouldShowEvaluateButton(): boolean {
     if (this.evaluationInProgress) {
       return true;
-    }
-    if (this.activeTab === 'Robustness') {
-      return false;
     }
     return this.canEvaluate;
   }
@@ -357,6 +357,10 @@ export class MvpHomeComponent {
     this.resetEvaluationState();
     if (tabName === 'Fairness') {
       this.applyFairnessPreset();
+      return;
+    }
+    if (tabName === 'Robustness') {
+      void this.refreshRobustnessAttackOptions();
     }
   }
 
@@ -405,6 +409,7 @@ export class MvpHomeComponent {
   }
 
   onRobustnessAttackToggle(attackName: string, isChecked: boolean): void {
+    this.resetEvaluationState();
     if (isChecked && !this.selectedRobustnessAttacks.includes(attackName)) {
       this.selectedRobustnessAttacks = [...this.selectedRobustnessAttacks, attackName];
       return;
@@ -420,11 +425,6 @@ export class MvpHomeComponent {
 
   async onEvaluateModel(): Promise<void> {
     if (!this.canEvaluate) {
-      return;
-    }
-
-    if (this.activeTab === 'Robustness') {
-      this.evaluationError = 'Robustness tab is intentionally empty for now.';
       return;
     }
 
@@ -507,6 +507,14 @@ export class MvpHomeComponent {
         } catch (error: any) {
           runErrors.push(`Explainability: ${this.resolveErrorMessage(error)}`);
           this.setTenetStatus('Explainability', 'error', this.resolveErrorMessage(error));
+        }
+      } else if (this.activeTab === 'Robustness') {
+        try {
+          await this.runRobustnessFlow(userId, datasetId, modelId, selectedDatasetOption);
+          runSuccess.push('Robustness');
+        } catch (error: any) {
+          runErrors.push(`Robustness: ${this.resolveErrorMessage(error)}`);
+          this.setTenetStatus('Robustness', 'error', this.resolveErrorMessage(error));
         }
       } else if (this.activeTab === 'Fairness') {
         try {
@@ -802,7 +810,7 @@ export class MvpHomeComponent {
     const effectiveAttacks =
       this.selectedRobustnessAttacks && this.selectedRobustnessAttacks.length > 0
         ? this.selectedRobustnessAttacks
-        : ['ProjectedGradientDescentTabular'];
+        : [this.defaultRobustnessAttacks[0]];
 
     const robustnessPayload: any = {
       userId,
@@ -822,6 +830,20 @@ export class MvpHomeComponent {
 
     if (!robustnessBatchId) {
       throw new Error('Robustness batch was not generated.');
+    }
+
+    this.currentStepMessage = 'Validating model compatibility for robustness...';
+    this.setTenetStatus('Robustness', 'running', 'Checking model and runtime compatibility...');
+    const validationPayload = new FormData();
+    validationPayload.append('batchId', String(robustnessBatchId));
+    const validationResponse: any = await firstValueFrom(
+      this.http.post(this.apiConfig.securityValidateAttackRun, validationPayload)
+    );
+    if (validationResponse?.status !== 'SUCCESS') {
+      throw new Error(
+        this.stringifyErrorCandidate(validationResponse?.message) ||
+          'Robustness compatibility validation failed.'
+      );
     }
 
     this.currentStepMessage = 'Running robustness attacks...';
@@ -904,6 +926,10 @@ export class MvpHomeComponent {
       securityApplicableAttacks: this.joinUrl(
         securityWrapperBase,
         configResult?.security_applicableAttack || '/rai/v1/security_workbench/attack'
+      ),
+      securityValidateAttackRun: this.joinUrl(
+        securityWorkbenchBase,
+        configResult?.SecurityValidateAttackRun || '/rai/v1/security_workbench/validateattackrun'
       ),
       securityReport: this.joinUrl(
         securityWorkbenchBase,
@@ -1045,6 +1071,7 @@ export class MvpHomeComponent {
       config.fairnessReport,
       config.fairnessDownload,
       config.securityApplicableAttacks,
+      config.securityValidateAttackRun,
       config.securityReport,
       config.downloadWorkReport,
     ];
@@ -1455,6 +1482,8 @@ export class MvpHomeComponent {
 
   private async loadRobustnessAttackOptions(selectedDatasetOption?: DatasetOption): Promise<void> {
     if (!selectedDatasetOption) {
+      this.robustnessAttackOptions = [...this.defaultRobustnessAttacks];
+      this.selectedRobustnessAttacks = [this.defaultRobustnessAttacks[0]];
       return;
     }
 
@@ -1467,20 +1496,21 @@ export class MvpHomeComponent {
         this.http.post(this.apiConfig.securityApplicableAttacks, requestPayload)
       );
       const extractedAttacks = this.extractAttackNames(attacksResponse);
-      // Merge with defaults - prioritize API-provided attacks
       if (extractedAttacks.length > 0) {
         this.robustnessAttackOptions = extractedAttacks;
+        this.selectedRobustnessAttacks = this.selectedRobustnessAttacks.filter((selectedAttack) =>
+          extractedAttacks.includes(selectedAttack)
+        );
         if (this.selectedRobustnessAttacks.length === 0) {
           this.selectedRobustnessAttacks = [extractedAttacks[0]];
         }
-      } else if (this.selectedRobustnessAttacks.length === 0) {
-        this.selectedRobustnessAttacks = ['ProjectedGradientDescentTabular'];
+      } else {
+        this.robustnessAttackOptions = [...this.defaultRobustnessAttacks];
+        this.selectedRobustnessAttacks = [this.defaultRobustnessAttacks[0]];
       }
     } catch (_error) {
-      // Keep defaults on error
-      if (this.selectedRobustnessAttacks.length === 0) {
-        this.selectedRobustnessAttacks = ['ProjectedGradientDescentTabular'];
-      }
+      this.robustnessAttackOptions = [...this.defaultRobustnessAttacks];
+      this.selectedRobustnessAttacks = [this.defaultRobustnessAttacks[0]];
     }
   }
 
@@ -1786,22 +1816,35 @@ export class MvpHomeComponent {
   private async downloadWorkbenchReport(batchId: number, filePrefix: string): Promise<void> {
     const body = new URLSearchParams();
     body.set('batchId', String(batchId));
-    const reportBlob = await firstValueFrom(
+    const response: any = await firstValueFrom(
       this.http.post(this.apiConfig.downloadWorkReport, body.toString(), {
+        observe: 'response',
         responseType: 'blob',
         headers: new HttpHeaders({ 'Content-Type': 'application/x-www-form-urlencoded' }),
       })
     );
 
-    const generatedFileName = `${filePrefix}_report_batch_${batchId}.zip`;
-    const blobUrl = window.URL.createObjectURL(reportBlob);
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.href = blobUrl;
-    downloadAnchor.download = generatedFileName;
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
-    window.URL.revokeObjectURL(blobUrl);
+    const reportBlob = response?.body as Blob;
+    if (!reportBlob || !(await this.isZipBlob(reportBlob))) {
+      const errorText = reportBlob ? await reportBlob.text() : '';
+      throw new Error(
+        this.extractDownloadErrorMessage(
+          errorText,
+          'Report download returned an invalid archive. The report may not have finished generating.'
+        )
+      );
+    }
+
+    let generatedFileName = `${filePrefix}_report_batch_${batchId}.zip`;
+    const contentDisposition = response?.headers?.get('Content-Disposition');
+    if (contentDisposition && contentDisposition.includes('filename=')) {
+      const downloadedName = contentDisposition.split('filename=')[1].trim().replace(/"/g, '');
+      if (downloadedName) {
+        generatedFileName = downloadedName;
+      }
+    }
+
+    this.downloadBlob(reportBlob, generatedFileName);
   }
 
   private async downloadFairnessReport(batchId: number): Promise<void> {
@@ -1893,7 +1936,14 @@ export class MvpHomeComponent {
 
     if (typeof candidate === 'string') {
       const trimmed = candidate.trim();
-      return trimmed && trimmed !== '[object Object]' ? trimmed : '';
+      if (!trimmed || trimmed === '[object Object]') {
+        return '';
+      }
+      const lowered = trimmed.toLowerCase();
+      if (lowered === 'none' || lowered === 'null' || lowered === 'undefined') {
+        return '';
+      }
+      return trimmed;
     }
 
     if (Array.isArray(candidate)) {
@@ -1922,6 +1972,35 @@ export class MvpHomeComponent {
     }
 
     return String(candidate);
+  }
+
+  private async isZipBlob(blobContent: Blob): Promise<boolean> {
+    if (!blobContent || blobContent.size < 4) {
+      return false;
+    }
+
+    const headerBytes = new Uint8Array(await blobContent.slice(0, 4).arrayBuffer());
+    return (
+      headerBytes[0] === 0x50 &&
+      headerBytes[1] === 0x4b &&
+      [0x03, 0x05, 0x07].includes(headerBytes[2])
+    );
+  }
+
+  private extractDownloadErrorMessage(errorText: string, fallbackMessage: string): string {
+    const normalizedText = String(errorText || '').trim();
+    if (!normalizedText) {
+      return fallbackMessage;
+    }
+
+    try {
+      const parsedPayload = JSON.parse(normalizedText);
+      return this.stringifyErrorCandidate(parsedPayload) || fallbackMessage;
+    } catch (_error) {
+      return normalizedText.length > 240
+        ? `${normalizedText.slice(0, 237)}...`
+        : normalizedText;
+    }
   }
 
   private resetEvaluationState(): void {

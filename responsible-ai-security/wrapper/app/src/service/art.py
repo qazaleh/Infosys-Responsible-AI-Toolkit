@@ -90,6 +90,64 @@ errorRequestMethod = 'GET'
 
 class Art:
 
+    @staticmethod
+    def _prepare_tabular_attack_context(payload):
+        model, model_path, modelName, modelFramework = UT.readModelFile(payload)
+        raw_data, data_path = UT.readDataFile({'BatchId':payload, 'model':model ,'modelFramework':modelFramework})
+        Payload_path = UT.readPayloadFile(payload)
+
+        payload_folder_path = UT.getcurrentDirectory() + "/database/payload"
+        payload_path = os.path.join(payload_folder_path, modelName + ".txt")
+        with open(f'{payload_path}') as f:
+            data = json.loads(f.read())
+
+        output_column = data["groundTruthClassLabel"]
+        feature_frame = raw_data.drop([output_column], axis=1)
+        target_report = raw_data[[output_column]].to_numpy()
+        target_vector = target_report.reshape(-1)
+        attack_model = model
+        attack_x = feature_frame.to_numpy()
+        attack_columns = list(feature_frame.columns)
+
+        # ART attacks require numeric arrays. For sklearn pipelines, use the fitted
+        # preprocessor output and run attacks against the final estimator.
+        if modelFramework == 'Scikit-learn' and hasattr(model, 'steps') and len(model.steps) >= 2:
+            preprocessor = model.steps[0][1]
+            estimator = model.steps[-1][1]
+            if hasattr(preprocessor, 'transform'):
+                transformed = preprocessor.transform(feature_frame)
+                if hasattr(transformed, 'toarray'):
+                    transformed = transformed.toarray()
+                attack_x = np.asarray(transformed, dtype=np.float32)
+                attack_model = estimator
+                attack_columns = [f'feature_{i}' for i in range(attack_x.shape[1])]
+        else:
+            attack_x = np.asarray(attack_x)
+            if attack_x.dtype == object:
+                attack_x = attack_x.astype(np.float32)
+
+        return {
+            'model': model,
+            'attack_model': attack_model,
+            'model_path': model_path,
+            'model_name': modelName,
+            'model_framework': modelFramework,
+            'raw_data': raw_data,
+            'data_path': data_path,
+            'payload_path': Payload_path,
+            'output_column': output_column,
+            'x': attack_x,
+            'y': target_vector,
+            'y_report': target_report,
+            'columns': attack_columns,
+        }
+
+    @staticmethod
+    def _cleanup_attack_context(context):
+        UT.databaseDelete(context['model_path'])
+        UT.databaseDelete(context['data_path'])
+        UT.databaseDelete(context['payload_path'])
+
 # ---------------------------------------------------------------------------------------------------------------
     
     # def PoisoningAttackSVM(payload):
@@ -160,27 +218,16 @@ class Art:
     def MembershipInferenceRule(payload):
         
         try:
+            context = Art._prepare_tabular_attack_context(payload)
+            x_train, x_test, y_train, y_test, y_train_report, _ = train_test_split(
+                context['x'],
+                context['y'],
+                context['y_report'],
+                test_size=0.33,
+                random_state=42,
+            )
 
-            model, model_path, modelName, modelFramework = UT.readModelFile(payload)
-            raw_data, data_path = UT.readDataFile({'BatchId':payload, 'model':model ,'modelFramework':modelFramework})
-            # raw_data, data_path = UT.readDataFile({'modelid':payload})
-            Payload_path = UT.readPayloadFile(payload)
-
-            list_of_column_names = list(raw_data.columns)
-            payload_folder_path = UT.getcurrentDirectory() + "/database/payload"
-            payload_path = os.path.join(payload_folder_path,modelName + ".txt")
-            with open(f'{payload_path}') as f:
-                data = f.read()
-            data = json.loads(data)
-            Output_column = data["groundTruthClassLabel"]
-
-            X = raw_data.drop([Output_column], axis=1).to_numpy()
-            Y = raw_data[[Output_column]].to_numpy()
-            list_of_column_names.remove(Output_column)
-            # x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=0.33, random_state=42)
-            x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=0.33, random_state=42)
-
-            classifier = SklearnClassifier(model=model)
+            classifier = SklearnClassifier(model=context['attack_model'])
             attack = MembershipInferenceBlackBoxRuleBased(classifier)
             inferred_train = attack.infer(x_train, y_train)
             inferred_test = attack.infer(x_test, y_test)
@@ -192,13 +239,13 @@ class Art:
             x,y = UT.calc_precision_recall(np.concatenate((inferred_train, inferred_test)),
                                 np.concatenate((np.ones(len(inferred_train)), np.zeros(len(inferred_test)))))
             
-            attack_data_list,attack_data_status = UT.combineList({'attack_data':x_train,'target_data':y_train,'prediction_data':inferred_train,'type':'Inference'})
-            list_of_column_names.extend([Output_column, 'prediction', 'result'])
+            attack_data_list,attack_data_status = UT.combineList({'attack_data':x_train,'target_data':y_train_report,'prediction_data':inferred_train,'type':'Inference'})
+            list_of_column_names = context['columns'] + [context['output_column'], 'prediction', 'result']
 
             Payload = {
-                    'modelName':modelName,
+                    'modelName':context['model_name'],
                     'attackName':"MembershipInferenceRule",
-                    'data_path':data_path,
+                    'data_path':context['data_path'],
                     # 'dataFileName':os.path.basename(data_path).split('.')[0],
                     'adversial_sample':attack_data_list,
                     'perturbation':acc,
@@ -207,40 +254,31 @@ class Art:
                 }
 
             foldername = RT.generatecsvreportart(Payload)
-            UT.databaseDelete(model_path)
-            UT.databaseDelete(data_path)
-            UT.databaseDelete(Payload_path)
-            del model,modelName,modelFramework,raw_data,X,Y,attack_data_list,attack_data_status,list_of_column_names,Payload
+            Art._cleanup_attack_context(context)
+            del context,attack_data_list,attack_data_status,list_of_column_names,Payload
             return {"Job_Id":f'{foldername}'}
 
         except Exception as e:
             if(telemetry_flg == 'True'):
                 with con.ThreadPoolExecutor() as executor:
                     executor.submit(log.log_error_to_telemetry, "MembershipInferenceRule", e, apiEndPoint, errorRequestMethod)    
+            log.error(f"MembershipInferenceRule FAILED: {type(e).__name__}: {str(e)}", exc_info=True)
+            return {"Job_Id": f"MembershipInferenceRule_FAILED_{str(e)}"}
 
 
     def MembershipInferenceBlackBox(payload):
 
         try:
-            model, model_path, modelName, modelFramework = UT.readModelFile(payload)
-            raw_data, data_path = UT.readDataFile({'BatchId':payload, 'model':model ,'modelFramework':modelFramework})
-            Payload_path = UT.readPayloadFile(payload)
-
-            list_of_column_names = list(raw_data.columns)
-            payload_folder_path = UT.getcurrentDirectory() + "/database/payload"
-            payload_path = os.path.join(payload_folder_path,modelName + ".txt")
-            with open(f'{payload_path}') as f:
-                data = f.read()
-            data = json.loads(data)
-            Output_column = data["groundTruthClassLabel"]
-
-            X = raw_data.drop([Output_column], axis=1).to_numpy()
-            Y = raw_data[[Output_column]].to_numpy()
-            list_of_column_names.remove(Output_column)
-            # x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=0.33, random_state=42)
-            x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=0.33, random_state=42)
+            context = Art._prepare_tabular_attack_context(payload)
+            x_train, x_test, y_train, y_test, y_train_report, _ = train_test_split(
+                context['x'],
+                context['y'],
+                context['y_report'],
+                test_size=0.33,
+                random_state=42,
+            )
             
-            classifier = SklearnClassifier(model=model)
+            classifier = SklearnClassifier(model=context['attack_model'])
             attack_train_ratio = 0.5
             attack_train_size = int(len(x_train) * attack_train_ratio)
             attack_test_size = int(len(x_test) * attack_train_ratio)
@@ -258,13 +296,13 @@ class Art:
             x,y = UT.calc_precision_recall(np.concatenate((inferred_train_bb, inferred_test_bb)),
                                 np.concatenate((np.ones(len(inferred_train_bb)), np.zeros(len(inferred_test_bb)))))
 
-            attack_data_list,attack_data_status = UT.combineList({'attack_data':x_train,'target_data':y_train,'prediction_data':inferred_train_bb.flatten().astype(int),'type':'Inference'})
-            list_of_column_names.extend([Output_column, 'prediction', 'result'])
+            attack_data_list,attack_data_status = UT.combineList({'attack_data':x_train[attack_train_size:],'target_data':y_train_report[attack_train_size:],'prediction_data':inferred_train_bb.flatten().astype(int),'type':'Inference'})
+            list_of_column_names = context['columns'] + [context['output_column'], 'prediction', 'result']
 
             Payload = {
-                    'modelName':modelName,
+                    'modelName':context['model_name'],
                     'attackName':"MembershipInferenceBlackBox",
-                    'data_path':data_path,
+                    'data_path':context['data_path'],
                     # 'dataFileName':os.path.basename(data_path).split('.')[0],
                     'adversial_sample':attack_data_list,
                     'perturbation':acc,
@@ -273,16 +311,16 @@ class Art:
                 }
             
             foldername = RT.generatecsvreportart(Payload)
-            UT.databaseDelete(model_path)
-            UT.databaseDelete(data_path)
-            UT.databaseDelete(Payload_path)
-            del model,modelName,modelFramework,raw_data,X,Y,attack_data_list,attack_data_status,list_of_column_names,Payload
+            Art._cleanup_attack_context(context)
+            del context,attack_data_list,attack_data_status,list_of_column_names,Payload
             return {"Job_Id":f'{foldername}'}
         
         except Exception as e:
             if(telemetry_flg == 'True'):
                 with con.ThreadPoolExecutor() as executor:
                     executor.submit(log.log_error_to_telemetry, "MembershipInferenceBlackBox", e, apiEndPoint, errorRequestMethod)    
+            log.error(f"MembershipInferenceBlackBox FAILED: {type(e).__name__}: {str(e)}", exc_info=True)
+            return {"Job_Id": f"MembershipInferenceBlackBox_FAILED_{str(e)}"}
 
     
     def LabelOnlyDecisionBoundaryAttack(payload):
@@ -492,26 +530,16 @@ class Art:
     def InferenceLabelOnlyAttack(payload):
 
         try:
-
-            model, model_path, modelName, modelFramework = UT.readModelFile(payload)
-            raw_data, data_path = UT.readDataFile({'BatchId':payload, 'model':model ,'modelFramework':modelFramework})
-            Payload_path = UT.readPayloadFile(payload)
-
-            list_of_column_names = list(raw_data.columns)
-            payload_folder_path = UT.getcurrentDirectory() + "/database/payload"
-            payload_path = os.path.join(payload_folder_path,modelName + ".txt")
-            with open(f'{payload_path}') as f:
-                data = f.read()
-            data = json.loads(data)
-            Output_column = data["groundTruthClassLabel"]
-
-            X = raw_data.drop([Output_column], axis=1).to_numpy()
-            Y = raw_data[[Output_column]].to_numpy()
-            list_of_column_names.remove(Output_column)
-            # x_train, x_test, y_train, y_test = train_test_split(X,Y, test_size=0.2, random_state=123)
-            x_train, x_test, y_train, y_test = train_test_split(X,Y, test_size=0.33, random_state=42)
+            context = Art._prepare_tabular_attack_context(payload)
+            x_train, x_test, y_train, y_test, y_train_report, _ = train_test_split(
+                context['x'],
+                context['y'],
+                context['y_report'],
+                test_size=0.33,
+                random_state=42,
+            )
             
-            art_rf_classifier = SklearnClassifier(model=model)
+            art_rf_classifier = SklearnClassifier(model=context['attack_model'])
             attack = LabelOnlyGapAttack(art_rf_classifier)
             inferred_train = attack.infer(x_train,y_train)
             inferred_test = attack.infer(x_test, y_test)
@@ -521,13 +549,13 @@ class Art:
             print(f"Members Accuracy: {train_acc:.4f}")
             print(f"Attack Accuracy {acc:.4f}")
 
-            attack_data_list,attack_data_status = UT.combineList({'attack_data':x_train,'target_data':y_train,'prediction_data':inferred_train,'type':'Inference'})
-            list_of_column_names.extend([Output_column, 'prediction', 'result'])
+            attack_data_list,attack_data_status = UT.combineList({'attack_data':x_train,'target_data':y_train_report,'prediction_data':inferred_train,'type':'Inference'})
+            list_of_column_names = context['columns'] + [context['output_column'], 'prediction', 'result']
 
             Payload = {
-                    'modelName':modelName,
+                    'modelName':context['model_name'],
                     'attackName':"InferenceLabelOnlyGap",
-                    'data_path':data_path,
+                    'data_path':context['data_path'],
                     # 'dataFileName':os.path.basename(data_path).split('.')[0],
                     'adversial_sample':attack_data_list,
                     'perturbation':acc,
@@ -536,16 +564,16 @@ class Art:
                 }
 
             foldername = RT.generatecsvreportart(Payload)
-            UT.databaseDelete(model_path)
-            UT.databaseDelete(data_path)
-            UT.databaseDelete(Payload_path)
-            del model,modelName,modelFramework,raw_data,X,Y,attack_data_list,attack_data_status,list_of_column_names,Payload
+            Art._cleanup_attack_context(context)
+            del context,attack_data_list,attack_data_status,list_of_column_names,Payload
             return {"Job_Id":f'{foldername}'}
         
         except Exception as e:
             if(telemetry_flg == 'True'):
                 with con.ThreadPoolExecutor() as executor:
                     executor.submit(log.log_error_to_telemetry, "InferenceLabelOnlyAttack", e, apiEndPoint, errorRequestMethod)    
+            log.error(f"InferenceLabelOnlyAttack FAILED: {type(e).__name__}: {str(e)}", exc_info=True)
+            return {"Job_Id": f"InferenceLabelOnlyGap_FAILED_{str(e)}"}
     
 
     def AttributeInference(payload):
@@ -1417,6 +1445,8 @@ class Art:
             if(telemetry_flg == 'True'):
                 with con.ThreadPoolExecutor() as executor:
                     executor.submit(log.log_error_to_telemetry, "FastGradientMethodAttack", e, apiEndPoint, errorRequestMethod)        
+            log.error(f"FastGradientMethodAttack FAILED: {type(e).__name__}: {str(e)}", exc_info=True)
+            return {"Job_Id": f"FastGradientMethod_FAILED_{str(e)}"}
 
 
     def UniversalPerturbationAttack(payload): 
@@ -1900,51 +1930,38 @@ class Art:
 
 # ---------------------------------------------------------------------------------------------------------------
     
-    def QueryEfficient(payload): 
+    def QueryEfficient(payload):
 
         try:
-
-            model, model_path, modelName, modelFramework = UT.readModelFile(payload)
-            raw_data, data_path = UT.readDataFile({'BatchId':payload, 'model':model ,'modelFramework':modelFramework})
-            Payload_path = UT.readPayloadFile(payload)
-
-            list_of_column_names = list(raw_data.columns)
-            payload_folder_path = UT.getcurrentDirectory() + "/database/payload"
-            payload_path = os.path.join(payload_folder_path,modelName + ".txt")
-            with open(f'{payload_path}') as f:
-                data = f.read()
-            data = json.loads(data)
-            Output_column = data["groundTruthClassLabel"]
-
-            X_train_1 = raw_data.drop([Output_column], axis=1).to_numpy()
-            Y_train_1 = raw_data[[Output_column]].to_numpy()
-            list_of_column_names.remove(Output_column)
-            classifier = QueryEfficientGradientEstimationClassifier(classifier=SklearnClassifier(model=model), num_basis=10,sigma=0.01, round_samples=0.003)
+            context = Art._prepare_tabular_attack_context(payload)
+            X_train_1 = context['x']
+            Y_train_1 = context['y']
+            classifier = QueryEfficientGradientEstimationClassifier(classifier=SklearnClassifier(model=context['attack_model']), num_basis=10,sigma=0.01, round_samples=0.003)
             zoo = FastGradientMethod(estimator =classifier, eps=1)
             zoo_x_train_adv = zoo.generate(X_train_1)
             idx =0
-            score = model.score(X_train_1, Y_train_1)
+            score = context['attack_model'].score(X_train_1, Y_train_1)
 
             # print("Benign Training Score: %.4f" % score)
             # print("Benign Training sample: ", X_train_1[idx,:])
-            bprediction = model.predict([X_train_1[idx]])
+            bprediction = context['attack_model'].predict([X_train_1[idx]])
             # print("Benign Training Predicted Label: %i" % bprediction)
-            ascore = model.score(zoo_x_train_adv, Y_train_1)
+            ascore = context['attack_model'].score(zoo_x_train_adv, Y_train_1)
             # print("\nAdversarial Training Score: %.4f" % ascore)
             # print("Adversarial Training sample: ", zoo_x_train_adv[idx])
-            prediction = model.predict([zoo_x_train_adv[idx]])
+            prediction = context['attack_model'].predict([zoo_x_train_adv[idx]])
             # print("Adversarial Training Predicted Label: %i" % prediction)
             # print("\nActual Label: %i" % Y_train_1[idx])
             perturbation = np.mean(np.abs((zoo_x_train_adv - X_train_1)))
             print('\nAverage perturbation: {:4.2f}'.format(perturbation))
 
-            attack_data_list,attack_data_status = UT.combineList({'attack_data':zoo_x_train_adv,'target_data':Y_train_1,'prediction_data':model.predict(zoo_x_train_adv),'adversial_score':ascore,'perturbation':perturbation,'type':'Evasion'})
-            list_of_column_names.extend([Output_column, 'prediction', 'result'])
+            attack_data_list,attack_data_status = UT.combineList({'attack_data':zoo_x_train_adv,'target_data':context['y_report'],'prediction_data':context['attack_model'].predict(zoo_x_train_adv),'adversial_score':ascore,'perturbation':perturbation,'type':'Evasion'})
+            list_of_column_names = context['columns'] + [context['output_column'], 'prediction', 'result']
             
             Payload = {
-                    'modelName':modelName,
+                    'modelName':context['model_name'],
                     'attackName':"QueryEfficient",
-                    'data_path':data_path,
+                    'data_path':context['data_path'],
                     # 'dataFileName':os.path.basename(data_path).split('.')[0],
                     # 'base_sample':X_train_1[idx,:],
                     # 'adversial_sample':zoo_x_train_adv,
@@ -1960,62 +1977,54 @@ class Art:
                 }
 
             foldername = RT.generatecsvreportart(Payload)
-            UT.databaseDelete(model_path)
-            UT.databaseDelete(data_path)
-            UT.databaseDelete(Payload_path)
-            del model,modelName,modelFramework,raw_data,X_train_1,Y_train_1,zoo_x_train_adv,attack_data_list,attack_data_status,list_of_column_names,Payload
+            Art._cleanup_attack_context(context)
+            del context,X_train_1,Y_train_1,zoo_x_train_adv,attack_data_list,attack_data_status,list_of_column_names,Payload
             return {"Job_Id":f'{foldername}'}
         
         except Exception as e:
             if(telemetry_flg == 'True'):
                 with con.ThreadPoolExecutor() as executor:
                     executor.submit(log.log_error_to_telemetry, "QueryEfficient", e, apiEndPoint, errorRequestMethod)        
+            log.error(f"QueryEfficient FAILED: {type(e).__name__}: {str(e)}", exc_info=True)
+            return {"Job_Id": f"QueryEfficient_FAILED_{str(e)}"}
 
 
     def ProjectedGradientDescentZoo(payload): 
 
         try:
-
-            model, model_path, modelName, modelFramework = UT.readModelFile(payload)
-            raw_data, data_path = UT.readDataFile({'BatchId':payload, 'model':model ,'modelFramework':modelFramework})
-            Payload_path = UT.readPayloadFile(payload)
-
-            list_of_column_names = list(raw_data.columns)
-            payload_folder_path = UT.getcurrentDirectory() + "/database/payload"
-            payload_path = os.path.join(payload_folder_path,modelName + ".txt")
-            with open(f'{payload_path}') as f:
-                data = f.read()
-            data = json.loads(data)
-            Output_column = data["groundTruthClassLabel"]
-
-            art_svm_classifier = SklearnClassifier(model=model)
-            X_train = raw_data.drop([Output_column], axis=1).to_numpy()
-            Y_train = raw_data[[Output_column]].to_numpy()
-            list_of_column_names.remove(Output_column)
+            context = Art._prepare_tabular_attack_context(payload)
+            art_svm_classifier = QueryEfficientGradientEstimationClassifier(
+                classifier=SklearnClassifier(model=context['attack_model']),
+                num_basis=10,
+                sigma=0.01,
+                round_samples=0.003,
+            )
+            X_train = context['x']
+            Y_train = context['y']
             pgd_attack = ProjectedGradientDescent(estimator=art_svm_classifier, targeted=False, max_iter=10, eps_step=1, eps=5)
             pgd_attack_x_train_adv = pgd_attack.generate(X_train)
-            bscore = model.score(X_train, Y_train)
+            bscore = context['attack_model'].score(X_train, Y_train)
 
             # print("Benign Training Score: %.4f" % bscore)
             # print("Benign Training sample: ", X_train[0,:])
-            bprediction = model.predict([X_train[0]])
+            bprediction = context['attack_model'].predict([X_train[0]])
             # print("Benign Training Predicted Label: %i" % bprediction)
-            ascore = model.score(pgd_attack_x_train_adv, Y_train)
+            ascore = context['attack_model'].score(pgd_attack_x_train_adv, Y_train)
             # print("\nAdversarial Training Score: %.4f" % ascore)
             # print("Adversarial Training sample: ", pgd_attack_x_train_adv[0])
-            aprediction = model.predict([pgd_attack_x_train_adv[0]])
+            aprediction = context['attack_model'].predict([pgd_attack_x_train_adv[0]])
             # print("Adversarial Training Predicted Label: %i" % aprediction)
             # print("\nActual Label: %i" % Y_train[0])
             perturbation = np.mean(np.abs((pgd_attack_x_train_adv - X_train)))
             print('\nAverage perturbation: {:4.2f}'.format(perturbation))
 
-            attack_data_list,attack_data_status = UT.combineList({'attack_data':pgd_attack_x_train_adv,'target_data':Y_train,'prediction_data':model.predict(pgd_attack_x_train_adv),'adversial_score':ascore,'perturbation':perturbation,'type':'Evasion'})
-            list_of_column_names.extend([Output_column, 'prediction', 'result'])
+            attack_data_list,attack_data_status = UT.combineList({'attack_data':pgd_attack_x_train_adv,'target_data':context['y_report'],'prediction_data':context['attack_model'].predict(pgd_attack_x_train_adv),'adversial_score':ascore,'perturbation':perturbation,'type':'Evasion'})
+            list_of_column_names = context['columns'] + [context['output_column'], 'prediction', 'result']
 
             Payload = {
-                    'modelName':modelName,
+                    'modelName':context['model_name'],
                     'attackName':"ProjectedGradientDescentTabular",
-                    'data_path':data_path,
+                    'data_path':context['data_path'],
                     # 'dataFileName':os.path.basename(data_path).split('.')[0],
                     # 'base_sample':X_train[0,:],
                     # 'adversial_sample':pgd_attack_x_train_adv,
@@ -2031,16 +2040,16 @@ class Art:
                 }
 
             foldername = RT.generatecsvreportart(Payload)
-            UT.databaseDelete(model_path)
-            UT.databaseDelete(data_path)
-            UT.databaseDelete(Payload_path)
-            del model,modelName,modelFramework,raw_data,X_train,Y_train,pgd_attack_x_train_adv,attack_data_list,attack_data_status,list_of_column_names,Payload
+            Art._cleanup_attack_context(context)
+            del context,X_train,Y_train,pgd_attack_x_train_adv,attack_data_list,attack_data_status,list_of_column_names,Payload
             return {"Job_Id":f'{foldername}'}
         
         except Exception as e:
             if(telemetry_flg == 'True'):
                 with con.ThreadPoolExecutor() as executor:
                     executor.submit(log.log_error_to_telemetry, "ProjectedGradientDescentZoo", e, apiEndPoint, errorRequestMethod)        
+            log.error(f"ProjectedGradientDescentZoo FAILED: {type(e).__name__}: {str(e)}", exc_info=True)
+            return {"Job_Id": f"ProjectedGradientDescentTabular_FAILED_{str(e)}"}
     
 
     def DecisionTreeAttackVectors(payload): 
@@ -2121,58 +2130,34 @@ class Art:
             print(f"\n{'='*80}\nHopSkipJumpCSV START: batchId={payload}\n{'='*80}")
             
             print(f"[1] Reading model file...")
-            model, model_path, modelName, modelFramework = UT.readModelFile(payload)
-            print(f"[2] ✓ Model loaded: {modelName}, framework: {modelFramework}")
-            
-            print(f"[3] Reading data file...")
-            raw_data, data_path = UT.readDataFile({'BatchId':payload, 'model':model ,'modelFramework':modelFramework})
-            print(f"[4] ✓ Data loaded: {raw_data.shape}")
-            
-            print(f"[5] Reading payload file...")
-            Payload_path = UT.readPayloadFile(payload)
-            print(f"[6] ✓ Payload file read")
-
-            list_of_column_names = list(raw_data.columns)
-            payload_folder_path = UT.getcurrentDirectory() + "/database/payload"
-            payload_path = os.path.join(payload_folder_path,modelName + ".txt")
-            
-            print(f"[7] Loading payload JSON from {payload_path}...")
-            with open(f'{payload_path}') as f:
-                data = f.read()
-            data = json.loads(data)
-            Output_column = data["groundTruthClassLabel"]
-            print(f"[8] ✓ Target column: {Output_column}")
-
-            print(f"[9] Preparing data for attack...")
-            X_train = raw_data.drop([Output_column], axis=1).to_numpy()
-            Y_train = raw_data[[Output_column]].to_numpy()
-            list_of_column_names.remove(Output_column)
-            print(f"[10] ✓ Data prepared: X={X_train.shape}, Y={Y_train.shape}")
+            context = Art._prepare_tabular_attack_context(payload)
+            print(f"[2] ✓ Model loaded: {context['model_name']}, framework: {context['model_framework']}")
+            print(f"[3] ✓ Data prepared: X={context['x'].shape}, Y={context['y_report'].shape}")
             
             print(f"[11] Creating classifier...")
-            classifier =  ScikitlearnClassifier(model=model)
+            classifier =  ScikitlearnClassifier(model=context['attack_model'])
             print(f"[12] ✓ Classifier created")
             
             print(f"[13] Generating HopSkipJump attack vectors...")
             ob=hop_skip_jump.HopSkipJump(classifier)
-            attackVectors=ob.generate(X_train)
+            attackVectors=ob.generate(context['x'])
             print(f"[14] ✓ Attack vectors generated: {attackVectors.shape}")
             
-            bscore = model.score(X_train, Y_train)
-            bprediction = model.predict([X_train[0]])
-            ascore = model.score(attackVectors, Y_train)
-            aprediction = model.predict([attackVectors[0]])
-            perturbation = np.mean(np.abs((attackVectors - X_train)))
+            bscore = context['attack_model'].score(context['x'], context['y'])
+            bprediction = context['attack_model'].predict([context['x'][0]])
+            ascore = context['attack_model'].score(attackVectors, context['y'])
+            aprediction = context['attack_model'].predict([attackVectors[0]])
+            perturbation = np.mean(np.abs((attackVectors - context['x'])))
             print(f"[15] ✓ Scores computed - benign: {bscore:.4f}, adversarial: {ascore:.4f}, perturbation: {perturbation:.4f}")
 
-            attack_data_list,attack_data_status = UT.combineList({'attack_data':attackVectors,'target_data':Y_train,'prediction_data':model.predict(attackVectors),'adversial_score':ascore,'perturbation':perturbation,'type':'Evasion'})
-            list_of_column_names.extend([Output_column, 'prediction', 'result'])
+            attack_data_list,attack_data_status = UT.combineList({'attack_data':attackVectors,'target_data':context['y_report'],'prediction_data':context['attack_model'].predict(attackVectors),'adversial_score':ascore,'perturbation':perturbation,'type':'Evasion'})
+            list_of_column_names = context['columns'] + [context['output_column'], 'prediction', 'result']
             print(f"[16] ✓ Attack data combined")
 
             Payload = {
-                    'modelName':modelName,
+                    'modelName':context['model_name'],
                     'attackName':"HopSkipJumpTabular",
-                    'data_path':data_path,
+                    'data_path':context['data_path'],
                     'adversial_sample':attack_data_list,
                     'perturbation':perturbation,
                     'columns':list_of_column_names,
@@ -2183,12 +2168,10 @@ class Art:
             foldername = RT.generatecsvreportart(Payload)
             print(f"[18] ✓ Report generated: {foldername}")
             
-            UT.databaseDelete(model_path)
-            UT.databaseDelete(data_path)
-            UT.databaseDelete(Payload_path)
+            Art._cleanup_attack_context(context)
             print(f"[19] ✓ Temp files cleaned")
             
-            del model,modelName,modelFramework,raw_data,X_train,Y_train,attackVectors,attack_data_list,attack_data_status,list_of_column_names,Payload
+            del context,attackVectors,attack_data_list,attack_data_status,list_of_column_names,Payload
             
             print(f"\n{'='*80}\nHopSkipJumpCSV COMPLETE - returning {foldername}\n{'='*80}\n")
             return {"Job_Id":f'{foldername}'}
@@ -2208,48 +2191,36 @@ class Art:
 
         try:
             
-            model, model_path, modelName, modelFramework = UT.readModelFile(payload)
-            raw_data, data_path = UT.readDataFile({'BatchId':payload, 'model':model ,'modelFramework':modelFramework})
-            Payload_path = UT.readPayloadFile(payload)
-            
-            list_of_column_names = list(raw_data.columns)
-            payload_folder_path = UT.getcurrentDirectory() + "/database/payload"
-            payload_path = os.path.join(payload_folder_path,modelName + ".txt")
-            with open(f'{payload_path}') as f:
-                data = f.read()
-            data = json.loads(data)
-            Output_column = data["groundTruthClassLabel"]
-
-            art_svm_classifier = SklearnClassifier(model=model)
+            context = Art._prepare_tabular_attack_context(payload)
+            art_svm_classifier = SklearnClassifier(model=context['attack_model'])
             zoo = ZooAttack(classifier=art_svm_classifier, confidence=0.0, targeted=False, learning_rate=1e-1, max_iter=20,
                             binary_search_steps=10, initial_const=1e-3, abort_early=True, use_resize=False, 
                             use_importance=False, nb_parallel=1, batch_size=1, variable_h=0.2)
-            X_train = raw_data.drop([Output_column], axis=1).to_numpy()
-            Y_train = raw_data[[Output_column]].to_numpy()
-            list_of_column_names.remove(Output_column)
+            X_train = context['x']
+            Y_train = context['y']
             zoo_x_train_adv = zoo.generate(X_train)
-            bscore = model.score(X_train, Y_train)
+            bscore = context['attack_model'].score(X_train, Y_train)
 
             # print("Benign Training Score: %.4f" % bscore)
             # print("Benign Training sample: ", X_train[0,:])
-            bprediction = model.predict([X_train[0]])
+            bprediction = context['attack_model'].predict([X_train[0]])
             # print("Benign Training Predicted Label: %i" % bprediction)
-            ascore = model.score(zoo_x_train_adv, Y_train)
+            ascore = context['attack_model'].score(zoo_x_train_adv, Y_train)
             # print("\nAdversarial Training Score: %.4f" % ascore)
             # print("Adversarial Training sample: ", zoo_x_train_adv[0])
-            aprediction = model.predict([zoo_x_train_adv[0]])
+            aprediction = context['attack_model'].predict([zoo_x_train_adv[0]])
             # print("Adversarial Training Predicted Label: %i" % aprediction)
             # print("\nActual Label: %i" % Y_train[0])
             perturbation = np.mean(np.abs((zoo_x_train_adv - X_train)))
             print('\nAverage perturbation: {:4.2f}'.format(perturbation))
 
-            attack_data_list,attack_data_status = UT.combineList({'attack_data':zoo_x_train_adv,'target_data':Y_train,'prediction_data':model.predict(zoo_x_train_adv),'adversial_score':ascore,'perturbation':perturbation,'type':'Evasion'})
-            list_of_column_names.extend([Output_column, 'prediction', 'result'])
+            attack_data_list,attack_data_status = UT.combineList({'attack_data':zoo_x_train_adv,'target_data':context['y_report'],'prediction_data':context['attack_model'].predict(zoo_x_train_adv),'adversial_score':ascore,'perturbation':perturbation,'type':'Evasion'})
+            list_of_column_names = context['columns'] + [context['output_column'], 'prediction', 'result']
 
             Payload = {
-                    'modelName':modelName,
+                    'modelName':context['model_name'],
                     'attackName':"ZerothOrderOptimization",
-                    'data_path':data_path,
+                    'data_path':context['data_path'],
                     # 'dataFileName':os.path.basename(data_path).split('.')[0],
                     # 'base_sample':X_train[0,:],
                     # 'adversial_sample':zoo_x_train_adv,
@@ -2263,18 +2234,18 @@ class Art:
                     # 'actual_label':Y_train[0],
                     'attack_data_status':attack_data_status
                 }
-            
+
             foldername = RT.generatecsvreportart(Payload)
-            UT.databaseDelete(model_path)
-            UT.databaseDelete(data_path)
-            UT.databaseDelete(Payload_path)
-            del model,modelName,modelFramework,raw_data,X_train,Y_train,zoo_x_train_adv,attack_data_list,attack_data_status,list_of_column_names,Payload
+            Art._cleanup_attack_context(context)
+            del context,X_train,Y_train,zoo_x_train_adv,attack_data_list,attack_data_status,list_of_column_names,Payload
             return {"Job_Id":f'{foldername}'}
         
         except Exception as e:
             if(telemetry_flg == 'True'):
                 with con.ThreadPoolExecutor() as executor:
                     executor.submit(log.log_error_to_telemetry, "ZooAttackVectors", e, apiEndPoint, errorRequestMethod)        
+            log.error(f"ZooAttackVectors FAILED: {type(e).__name__}: {str(e)}", exc_info=True)
+            return {"Job_Id": f"ZerothOrderOptimization_FAILED_{str(e)}"}
 
     
     # def VirtualAdversarialMethod(payload):

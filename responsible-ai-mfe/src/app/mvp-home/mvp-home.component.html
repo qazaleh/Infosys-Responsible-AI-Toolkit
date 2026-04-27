@@ -145,7 +145,45 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       <p class="hint-line">Dataset presets fill these fields automatically. You can still adjust them before evaluation.</p>
     </section>
 
-    <p class="linked-model" *ngIf="isExplainabilityTab && selectedModel">
+    <section class="setup-panel" *ngIf="isRobustnessTab">
+      <h3>Robustness Setup</h3>
+      <p class="section-label">Using dataset: <strong>banking_loan_training.csv</strong></p>
+      <div class="form-grid compact">
+        <label>
+          <span>Target Classifier</span>
+          <select
+            class="compact-input"
+            [(ngModel)]="uploadedTargetClassifier"
+            (ngModelChange)="onUploadedMetaChange()"
+          >
+            <optgroup
+              *ngFor="let classifierGroup of classifierOptionGroups"
+              [label]="classifierGroup.label"
+            >
+              <option
+                *ngFor="let classifierOption of classifierGroup.options"
+                [value]="classifierOption.value"
+              >
+                {{ classifierOption.value }}
+              </option>
+            </optgroup>
+          </select>
+        </label>
+      </div>
+      <div class="attack-list">
+        <label class="attack-item" *ngFor="let attackName of robustnessAttackOptions">
+          <input
+            type="checkbox"
+            [checked]="selectedRobustnessAttacks.includes(attackName)"
+            (change)="onRobustnessAttackToggle(attackName, $any($event.target).checked)"
+          />
+          <span>{{ attackName }}</span>
+        </label>
+      </div>
+      <p class="hint-line">Select at least one attack. If the security service returns a filtered list, only supported attacks remain available.</p>
+    </section>
+
+    <p class="linked-model" *ngIf="(isExplainabilityTab || isRobustnessTab) && selectedModel">
       Linked model: <strong>{{ selectedModel }}</strong>
     </p>
 
@@ -161,7 +199,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
           ? 'Running Evaluation...'
           : isExplainabilityTab
             ? 'Evaluate Explainability'
-            : 'Evaluate Fairness'
+            : isRobustnessTab
+              ? 'Evaluate Robustness'
+              : 'Evaluate Fairness'
       }}
     </button>
 

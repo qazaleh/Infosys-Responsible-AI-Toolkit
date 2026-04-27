@@ -28,6 +28,18 @@ from privacy.util.special_recognizers.TransformerRecognizer import TransformersR
 print("===========init==========")
 error_dict={}
 admin_par={}
+
+
+def load_transformer_recognizer(model_path, supported_entities, configuration):
+    recognizer = TransformersRecognizer(
+        model_path=model_path,
+        supported_entities=supported_entities,
+    )
+    try:
+        recognizer.load_transformer(**configuration)
+    except Exception as exc:
+        print(f"Skipping transformer model {model_path}: {exc}")
+    return recognizer
 session_dict = contextvars.ContextVar('session_dict', default={})
 
 # Example usage:
@@ -74,7 +86,10 @@ class LoadedSpacyNlpEngine(SpacyNlpEngine):
         super().__init__()
         self.nlp = {"en": loaded_spacy_model}
 
-trf_nlp = spacy.load("en_core_web_trf")
+try:
+    trf_nlp = spacy.load("en_core_web_trf")
+except OSError:
+    trf_nlp = spacy.blank("en")
 
 # Pass the loaded model to the new LoadedSpacyNlpEngine
 trf_engine = LoadedSpacyNlpEngine(loaded_spacy_model = trf_nlp)
@@ -102,20 +117,22 @@ encryptImageEngin_m=EncryptImage(image_analyzer_engine=imageAnalyzerEngine_m)
 from privacy.util.special_recognizers.transformer_config.roberta_config import ROBERTA_CONFIGURATION
 roberta_path = r"../models/roberta"
 supported_entities_1 = ROBERTA_CONFIGURATION.get("PRESIDIO_SUPPORTED_ENTITIES")
-roberta_recog = TransformersRecognizer(model_path=roberta_path,
-                                                     supported_entities=supported_entities_1)
-
-## This would download a large (~500Mb) model on the first run
-roberta_recog.load_transformer(**ROBERTA_CONFIGURATION)
+roberta_recog = load_transformer_recognizer(
+    roberta_path,
+    supported_entities_1,
+    ROBERTA_CONFIGURATION,
+)
 
 
 """PIIRanha Transformer"""
 from privacy.util.special_recognizers.transformer_config.ranha_config import RANHA_DEID_CONFIGURATION
 ranha_path = r"../models/PIIRanha"
 supported_entities_2 = RANHA_DEID_CONFIGURATION.get("PRESIDIO_SUPPORTED_ENTITIES")
-ranha_recog= TransformersRecognizer(model_path=ranha_path,  
-                                                        supported_entities=supported_entities_2)
-ranha_recog.load_transformer(**RANHA_DEID_CONFIGURATION)
+ranha_recog = load_transformer_recognizer(
+    ranha_path,
+    supported_entities_2,
+    RANHA_DEID_CONFIGURATION,
+)
 
 
 
@@ -123,15 +140,19 @@ ranha_recog.load_transformer(**RANHA_DEID_CONFIGURATION)
 from privacy.util.special_recognizers.transformer_config.roberta_mulitlingual_config import ROBERTA_MULTILINGUAL_CONFIGURATION
 multilingual_model_path = r'../models/multilingual-ner'
 supported_entities_3 = ROBERTA_MULTILINGUAL_CONFIGURATION.get("PRESIDIO_SUPPORTED_ENTITIES")
-roberta_multilingual_recog = TransformersRecognizer(model_path=multilingual_model_path,supported_entities=supported_entities_3)
-roberta_multilingual_recog.load_transformer(**ROBERTA_MULTILINGUAL_CONFIGURATION)
+roberta_multilingual_recog = load_transformer_recognizer(
+    multilingual_model_path,
+    supported_entities_3,
+    ROBERTA_MULTILINGUAL_CONFIGURATION,
+)
 
 
 deanonymizer = DeanonymizeEngine()
 DicomEngine = DicomImageRedactorEngine()
 registry.load_predefined_recognizers()
 # print("========B===========",registry.get_supported_entities())
-registry.add_recognizer(roberta_multilingual_recog)
+if roberta_multilingual_recog.is_loaded:
+    registry.add_recognizer(roberta_multilingual_recog)
 
 
 

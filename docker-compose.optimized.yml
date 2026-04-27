@@ -427,6 +427,9 @@ services:
     command: ["python3", "main_api.py"]
     environment:
       PORT: "8000"
+      DB_TYPE: mongo
+      DB_NAME: rai_repository
+      MONGO_PATH: mongodb://mongo:27017/
       ALLOWED_ORIGINS: '["*"]'
     volumes:
       - ./responsible-ai-llm-benchmarking/responsible-ai-benchmarking:/app
@@ -539,6 +542,11 @@ services:
     environment:
       PORT: "8000"
       ALLOWED_ORIGINS: '["*"]'
+      allow_origin: '["*"]'
+      allow_methods: '["GET","POST","OPTIONS","HEAD","DELETE","PATCH","PUT"]'
+      AZURE_BLOB_STORAGE_CONNECTION_KEY: DefaultEndpointsProtocol=https;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNoKYvFjCj9nMZhNCROnHh68x5fKIOztuP0e6c9l6rR9sQq1T6fO8z3nE7jE0o9W8xM7yD2J5m5w==;EndpointSuffix=core.windows.net
+      GOOGLE_CLOUD_PROJECT: dev-project
+      STORAGE_EMULATOR_HOST: http://localhost:4443
       STORAGE_PATH: /app/storage
     volumes:
       - ./responsible-ai-file-storage:/app

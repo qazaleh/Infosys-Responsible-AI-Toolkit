@@ -23,6 +23,7 @@ import json
 import os
 import csv
 import re
+from urllib.parse import urlparse
 
 from src.service.utility import Utility as UT
 from src.config.logger import CustomLogger
@@ -121,18 +122,18 @@ class Infosys:
     # -------------------------------------------------------------------------------------------------
 
     def logUI(payload):
-        {   
-            "level": 5,   
-            "additional": [],   
-            "message":"Error",   
-            "timestamp":"2020-02-02T11:42:40.153Z",   
-            "fileName":"main.js",   
-            "lineNumber": 87,   
+        {
+            "level": 5,
+            "additional": [],
+            "message":"Error",
+            "timestamp":"2020-02-02T11:42:40.153Z",
+            "fileName":"main.js",
+            "lineNumber": 87,
             "columnNumber": 26
         }
 
         return ''
-        
+
     # -------------------------------------------------------------------------------------------------
 
     def getavailableAttack():
@@ -140,12 +141,12 @@ class Infosys:
         try:
             if(UrlLinks.Assessment_Generation==False):
                 return sorted(["ProjectedGradientDescentTabular","ZerothOrderOptimization",
-                                "QueryEfficient", "Deepfool", 
-                                "Wasserstein", "Boundary", 
-                                'CarliniL2Method', 'Pixel', 
-                                'UniversalPerturbation', 'FastGradientMethod', 
-                                'SpatialTransformation', 'Square', 
-                                'MembershipInferenceRule', 'ProjectGradientDescentImage', 
+                                "QueryEfficient", "Deepfool",
+                                "Wasserstein", "Boundary",
+                                'CarliniL2Method', 'Pixel',
+                                'UniversalPerturbation', 'FastGradientMethod',
+                                'SpatialTransformation', 'Square',
+                                'MembershipInferenceRule', 'ProjectGradientDescentImage',
                                 'BasicIterativeMethod', 'SaliencyMapMethod',
                                 'DecisionTree', 'IterativeFrameSaliency',
                                 'SimBA', 'NewtonFool','AttributeInference',
@@ -166,18 +167,16 @@ class Infosys:
             if(telemetry_flg == 'True'):
                 with con.ThreadPoolExecutor() as executor:
                     executor.submit(log.log_error_to_telemetry, "getavailableAttack", e, apiEndPoint, errorRequestMethod)
-    
+
     # -------------------------------------------------------------------------------------------------
 
     def getAttackFuncs(payload):
         try:
-            # Reading Payload based on modelid then find attack based on datatype and classifier
             attributesData = {
                 'targetClassifier':payload['targetClassifier'],
                 'targetDataType':payload['targetDataType']
             }
 
-            # Reading AttackName from AttackDb base on above requirements
             classifierList = AttackAttributesValues.findall({'AttackAttributeValues':attributesData["targetClassifier"]})
             dataList = AttackAttributesValues.findall({'AttackAttributeValues':attributesData["targetDataType"]})
             attackid_list = [d.get('AttackId') for d in dataList]
@@ -203,18 +202,16 @@ class Infosys:
             if(telemetry_flg == 'True'):
                 with con.ThreadPoolExecutor() as executor:
                     executor.submit(log.log_error_to_telemetry, "getAttackFuncs", e, apiEndPoint, errorRequestMethod)
-
-
+            raise
 
     def addAttack(Payload:GetAttackDataRequest):
-    
+
         try:
             Payload = AttributeDict(Payload)
             keys = Payload.keys()
             if(len(Payload.attackName) < 1):
                 return "NULL value restricted!"
 
-            # added data in AttackDb, AttackAttributesDb, AttackAttributesValuesDb
             attack_data = Attack.mycol.find_one({"AttackName":Payload.attackName})
             if attack_data:
                 return 'Attack Already Exists'
@@ -225,17 +222,15 @@ class Infosys:
                         pass
                     else:
                         attackAttributesId = AttackAttributes.create({"attackAttributeName":key})
-                        attackAttributesValuesId = AttackAttributesValues.create({"attackAttributeId":attackAttributesId,"attackId":attackId,"attackAttributeValues":Payload[key]})
+                        AttackAttributesValues.create({"attackAttributeId":attackAttributesId,"attackId":attackId,"attackAttributeValues":Payload[key]})
 
                 return "Attack Added Sucessfully"
-        
+
         except Exception as exc:
             if(telemetry_flg == 'True'):
                 with con.ThreadPoolExecutor() as executor:
                     executor.submit(UT.log_error_to_telemetry, "addAttack", exc, apiEndPoint, errorRequestMethod)
             return "Attack Addition Failed! Please Try Again"
-    
-    
 
     def deleteAttack(payload):
 
@@ -244,17 +239,13 @@ class Infosys:
             if len(attackattributesvalues_list) < 1 :
                 return "No Attack Available to Delete"
             else:
-                # delete from AttackAttributesValuesDb
                 attackattributesvalues_list = AttackAttributesValues.findall({'AttackAttributeValues':payload['attackName']})
                 attackId = attackattributesvalues_list[0]['AttackId']
                 attackattributeId = attackattributesvalues_list[0]['AttackAttributeId']
                 attackattributeValueId = attackattributesvalues_list[0]['AttackAttributeValuesId']
                 AttackAttributesValues.delete({'AttackAttributeValuesId':attackattributeValueId})
-                
-                # delete from AttackAttributesDb
-                AttackAttributes.delete({'AttackAttributeId':attackattributeId})
 
-                # delete from AttackDb
+                AttackAttributes.delete({'AttackAttributeId':attackattributeId})
                 Attack.delete({'AttackId':attackId})
 
                 del attackattributesvalues_list
@@ -264,11 +255,11 @@ class Infosys:
                 with con.ThreadPoolExecutor() as executor:
                     executor.submit(log.log_error_to_telemetry, "deleteAttack", exc, apiEndPoint, errorRequestMethod)
             return "Oops! Unable to Delete Attack, Please Try After Sometime."
-    
+
    # -------------------------------------------------------------------------------------------------
-         
+
     def setAttack(payload):
-        
+
         try:
             print(f"\n{'='*80}")
             print(f"setAttack() CALLED")
@@ -276,7 +267,7 @@ class Infosys:
             print(f"  BatchId: {payload.get('batchId')}")
             print(f"{'='*80}\n")
             log.info(f"=== setAttack() called with attack: {payload.get('modelUrl')}, batchId: {payload.get('batchId')}")
-            
+
             if(payload['modelUrl'] in Infosys.ArtSupportedModel):
                 print(f"✓ Attack '{payload['modelUrl']}' is in ArtSupportedModel list")
                 log.info(f"✓ Attack '{payload['modelUrl']}' is in ArtSupportedModel list")
@@ -293,7 +284,7 @@ class Infosys:
                 elif(AttackFunction == "QueryEfficient"):
                     response = Art.QueryEfficient(payload['batchId'])
                 elif(AttackFunction == "Deepfool"):
-                    response = Art.DeepfoolAttack(payload['batchId'])  
+                    response = Art.DeepfoolAttack(payload['batchId'])
                 elif(AttackFunction == "Wasserstein"):
                     response = Art.WassersteinAttack(payload['batchId'])
                 elif(AttackFunction == "Boundary"):
@@ -310,7 +301,7 @@ class Infosys:
                     response = Art.SpatialTransformation(payload['batchId'])
                 elif(AttackFunction == 'Square'):
                     response = Art.SquareAttack(payload['batchId'])
-                elif(AttackFunction == 'AttributeInference'): 
+                elif(AttackFunction == 'AttributeInference'):
                     response = Art.AttributeInference(payload['batchId'])
                 elif(AttackFunction == 'MembershipInferenceBlackBox'):
                     response = Art.MembershipInferenceBlackBox(payload['batchId'])
@@ -334,8 +325,6 @@ class Infosys:
                     response = Art.InferenceLabelOnlyAttack(payload['batchId'])
                 elif(AttackFunction == 'ElasticNet'):
                     response = Art.ElasticNetAttack(payload['batchId'])
-                # elif(AttackFunction == "Poisoning"):
-                #     response = Art.PoisoningAttackSVM(payload['batchId'])
                 elif(AttackFunction == "AttributeInferenceWhiteBoxDecisionTree"):
                     response = Art.AttributeInferenceWhiteBoxDecisionTreeAttack(payload['batchId'])
                 elif(AttackFunction == "AttributeInferenceWhiteBoxLifestyleDecisionTree"):
@@ -348,8 +337,6 @@ class Infosys:
                     response = Art.HopSkipJumpCSV(payload['batchId'])
                     print(f"✓ HopSkipJumpCSV completed, response: {response}")
                     log.info(f"✓ HopSkipJumpCSV completed, response: {response}")
-                # elif(AttackFunction == "HopSkipJumpImage"):
-                #     response = Art.HopSkipJumpImage(payload['batchId'])
                 elif(AttackFunction == "QueryEfficientGradientAttackEndPoint"):
                     response = ArtEndPoint.QueryEfficientGradientAttack(payload['batchId'])
                 elif(AttackFunction == "BoundaryAttackEndPoint"):
@@ -364,12 +351,6 @@ class Infosys:
                     response = ArtEndPoint.LabelOnlyDecisionBoundaryAttack(payload['batchId'])
                 elif(AttackFunction == "MembershipInferenceBlackBoxAttackEndPoint"):
                     response = ArtEndPoint.MembershipInferenceBlackBoxAttack(payload['batchId'])
-                # elif(AttackFunction == 'VirtualAdversarialMethod'):
-                #     response = Art.VirtualAdversarialMethod(payload['batchId'])
-                # elif(AttackFunction == "GeometricDecisionBasedAttack"):
-                #     response = Art.GeometricDecisionAttack(payload['batchId'])
-                # elif(AttackFunction == 'Threshold'):
-                #     response = Art.Threshold(payload['batchId']) 
                 elif(AttackFunction == "Augly"):
                     response = Augly.Augly(payload['batchId'])
                 else:
@@ -384,16 +365,111 @@ class Infosys:
                 log.error(f"✗ CRITICAL: Attack '{payload['modelUrl']}' NOT in ArtSupportedModel list!")
                 print(f"Available attacks: {Infosys.ArtSupportedModel}")
                 return {"ERROR": f"Attack '{payload['modelUrl']}' not supported"}
-            
+
         except Exception as exc:
             if(telemetry_flg == 'True'):
                 with con.ThreadPoolExecutor() as executor:
                     executor.submit(log.log_error_to_telemetry, "setAttack", exc, apiEndPoint, errorRequestMethod)
             return {"Oops! Something is Wrong With Input, Please Retry!"}
-            
+
     # -------------------------------------------------------------------------------------------------
 
+
+def resolve_reporting_conversion_url():
+    configured_url = (
+        securitypdfgenerationip
+        or os.getenv("REPORT_URL")
+        or "http://reporting-tool"
+    )
+    configured_url = str(configured_url).strip()
+
+    if not configured_url:
+        configured_url = "http://reporting-tool"
+
+    parsed = urlparse(configured_url)
+    if not parsed.scheme:
+        configured_url = "http://reporting-tool"
+
+    normalized_base = configured_url.rstrip("/")
+    known_suffixes = (
+        "/v1/report/converttopdfreport",
+        "/v1/report/htmltopdfconversion",
+    )
+    for suffix in known_suffixes:
+        if normalized_base.endswith(suffix):
+            normalized_base = normalized_base[: -len(suffix)]
+            break
+
+    if not normalized_base:
+        normalized_base = "http://reporting-tool"
+
+    return normalized_base + "/v1/report/converttopdfreport"
+
 class Bulk:
+
+    def validateAttackRunPreconditions(payload):
+        context = None
+        model_path = None
+        payload_file_handle = None
+        data_path = None
+        try:
+            batch_id = payload['batchid']
+            validation_summary = []
+
+            batchList = Batch.findall({'BatchId':batch_id})[0]
+            modelList = Model.findall({'ModelId':batchList['ModelId']})[0]
+            model_name = modelList['ModelName']
+
+            model, model_path, loaded_model_name, model_framework = UT.readModelFile(batch_id)
+            validation_summary.append(f"Loaded model '{loaded_model_name}' with framework '{model_framework}'.")
+
+            payload_folder_path = UT.getcurrentDirectory() + "/database/payload"
+            payload_path = os.path.join(payload_folder_path, loaded_model_name + ".txt")
+            payload_file_handle = UT.readPayloadFile(batch_id)
+            with open(payload_path) as f:
+                payload_data = json.loads(f.read())
+
+            if payload_data.get('dataType') == 'Tabular':
+                context = Art._prepare_tabular_attack_context(batch_id)
+                validation_summary.append(
+                    f"Prepared tabular attack input with shape {tuple(context['x'].shape)}."
+                )
+            else:
+                raw_data, data_path = UT.readDataFile({'BatchId':batch_id, 'model':model ,'modelFramework':model_framework})
+                validation_summary.append("Loaded non-tabular attack input successfully.")
+
+            report_url = resolve_reporting_conversion_url()
+            parsed_report_url = urlparse(report_url)
+            if not parsed_report_url.scheme or not parsed_report_url.netloc:
+                raise ValueError(
+                    "Reporting tool URL is not configured correctly for combined robustness report generation."
+                )
+            validation_summary.append(f"Validated reporting conversion URL '{report_url}'.")
+
+            return {
+                'status': 'SUCCESS',
+                'message': ' '.join(validation_summary),
+                'modelName': model_name,
+            }
+        except Exception as exc:
+            failure_message = str(exc).strip() or f'{type(exc).__name__} during robustness compatibility validation.'
+            return {
+                'status': 'FAILURE',
+                'message': f"Robustness compatibility validation failed: {failure_message}",
+            }
+        finally:
+            if context is not None:
+                try:
+                    Art._cleanup_attack_context(context)
+                except Exception:
+                    pass
+            else:
+                if model_path:
+                    UT.databaseDelete(model_path)
+                if data_path:
+                    UT.databaseDelete(data_path)
+                if payload_file_handle:
+                    UT.databaseDelete(payload_file_handle)
 
 
     def loadApi():
@@ -447,24 +523,13 @@ class Bulk:
                 log.error(err)
                 return {"ERROR": err}
 
-            # If attack failed before report generation, create a debug report artifact.
+            # Treat explicit attack failures as errors so they do not poison combined report generation.
             if "_FAILED_" in response:
-                failed_folder = Bulk.sanitize_filenameorfoldername(f"{payload['modelUrl']}_FAILED_{str(payload['batchId']).replace('.', '_')}")
-                report_root = os.path.join(root_path, "report")
-                report_folder_path = os.path.join(report_root, failed_folder)
-                os.makedirs(report_folder_path, exist_ok=True)
                 error_text = response.split("_FAILED_", 1)[-1]
-                debug_html = (
-                    "<html><head><title>Security Attack Failure</title></head><body>"
-                    f"<h2>Attack failed: {payload['modelUrl']}</h2>"
-                    f"<p><b>BatchId:</b> {payload['batchId']}</p>"
-                    f"<p><b>Error:</b> {error_text}</p>"
-                    "<p>This debug report was generated to make failure details downloadable.</p>"
-                    "</body></html>"
-                )
-                with open(os.path.join(report_folder_path, "report.html"), "w") as dbg:
-                    dbg.write(debug_html)
-                response = failed_folder
+                err = f"Attack {payload['modelUrl']} failed before report generation: {error_text}"
+                print(f"✗ {err}")
+                log.error(err)
+                return {"ERROR": err}
             
             response = Bulk.sanitize_filenameorfoldername(response)
             log.info(f"Sanitized response (folder name): {response}")
@@ -612,6 +677,13 @@ class Bulk:
 
             #  Reading Report file from MongoDB and stroing in Database Folder.
             count = UT.combineReportFile({'batchid':payload['batchid'],'modelName':modelName,'report_path':report_path,'attackList':payload['attackList']})
+            if not count:
+                return {
+                    'ERROR': (
+                        'No attack report artifacts were available to combine. '
+                        'The selected robustness attacks did not generate usable outputs.'
+                    )
+                }
             
             # get all applicable attack and arrange in list of dictionary
             total_attacks = Infosys.getAttackFuncs({'targetClassifier':payload_data['targetClassifier'],'targetDataType':payload_data['dataType']})
@@ -653,10 +725,22 @@ class Bulk:
                 statusList = UT.checkAttackListStatus({'folder_path':report_path, 'modelName':modelName, 'attackList':payload['attackList'], 'meta_data':payload_data})
                 # print(statusList)
                 rows, attack_list = UT.makeAttackListRow({'total_attacks':total_attacks,'attackList':payload['attackList'],'statusList':statusList, 'meta_data':payload_data})
+
+            if not attack_list:
+                return {
+                    'ERROR': (
+                        'No usable robustness artifacts were generated for the selected attacks. '
+                        'The attack runs may have failed before producing adversarial samples.'
+                    )
+                }
                 # print(attack_list)
 
             # adding summary content and combine graph in combine html
             success_skipped_list = [len(total_attacks), count, (len(total_attacks)-count)]
+            combined_html_path = os.path.join(report_path, "report.html")
+            if not os.path.exists(combined_html_path):
+                with open(combined_html_path, "w", encoding="utf-8") as combined_html_file:
+                    combined_html_file.write("")
 
             # taking dateTime depend on server
             # report_datetime = UT.dateTimeFormat()
@@ -739,9 +823,12 @@ class Bulk:
             return {'combineReportFileId':reportid}
         
         except Exception as exc:
+            log.error(f"combinereport FAILED: {type(exc).__name__}: {str(exc)}", exc_info=True)
             if(telemetry_flg == 'True'):
                 with con.ThreadPoolExecutor() as executor:
                     executor.submit(log.log_error_to_telemetry, "combinereport", exc, apiEndPoint, errorRequestMethod)
+            failure_message = str(exc).strip() or f'{type(exc).__name__} during combined robustness report generation.'
+            return {'ERROR': f'Combined robustness report generation failed: {failure_message}'}
 
     
     
@@ -782,12 +869,21 @@ class Bulk:
 
             print(f"runAllAttack normalized appAttacks={attacks_fun_list}")
 
+            validation_result = Bulk.validateAttackRunPreconditions({
+                'batchid': payload['batchid'],
+                'attackList': attacks_fun_list,
+            })
+            if validation_result.get('status') != 'SUCCESS':
+                Batch.update(batchList['BatchId'], {'Status':'Failed'})
+                return {'runAllAttack': validation_result.get('message')}
+
             # Updating metadata Status of Batch Table
             Batch.update(batchList['BatchId'], {'Status':'InProgress...'})
 
             # Reading AttackName from AttackDb base on above requirements
             attackList = []
             successful_attacks = 0
+            failed_attacks = []
             for attack in attacks_fun_list:
                 try:
                     d = {}
@@ -806,6 +902,11 @@ class Bulk:
 
                     if isinstance(batchid, dict) and (batchid.get("ERROR") or batchid.get("Oops! Something is Wrong With Input, Please Retry!")):
                         print(f"runAllAttack attack={attack} failed with payload={batchid}")
+                        failure_reason = batchid.get("ERROR") or batchid.get("Oops! Something is Wrong With Input, Please Retry!")
+                        failed_attacks.append({
+                            'attack': attack,
+                            'reason': str(failure_reason).strip() if failure_reason is not None else 'Unknown attack failure.'
+                        })
                         continue
 
                     successful_attacks += 1
@@ -822,29 +923,64 @@ class Bulk:
                 except Exception as e:
                     print(f"runAllAttack exception for attack={attack}: {e}")
                     log.info(e)
+                    failed_attacks.append({
+                        'attack': attack,
+                        'reason': str(e).strip() if str(e).strip() else f'{type(e).__name__} during attack execution.'
+                    })
 
             if successful_attacks == 0:
                 Batch.update(batchList['BatchId'], {'Status':'Failed'})
-                return {'runAllAttack': 'No attacks generated reports. Check security logs for batchAttack errors.'}
+                failure_summary = 'No attacks generated reports. Check security logs for batchAttack errors.'
+                if failed_attacks:
+                    summarized_failures = []
+                    for failure in failed_attacks[:3]:
+                        reason = failure['reason']
+                        summarized_failures.append(f"{failure['attack']}: {reason}")
+                    failure_summary = (
+                        f"{failure_summary} First failures: {' | '.join(summarized_failures)}"
+                    )
+                return {'runAllAttack': failure_summary}
 
             # sorting attacks base on attack-type 
             attackList = sorted(attackList, key=lambda x: x['type'])
             attackList = [x['name'] for x in attackList]
 
             combineReportId = Bulk.combinereport({'batchid':batchList['BatchId'],'attackList':attackList, 'dateTime':payload['dateTime']})
-            
+
+            if isinstance(combineReportId, dict) and combineReportId.get('ERROR'):
+                Batch.update(
+                    batchList['BatchId'],
+                    {
+                        'Status': 'Failed',
+                        'LastUpdatedDateTime': datetime.datetime.now()
+                    }
+                )
+                return {'runAllAttack': combineReportId.get('ERROR')}
+
             if combineReportId:
                 try:
                     # now Html content  store in Report Table
-                    url = securitypdfgenerationip + '/v1/report/converttopdfreport'
+                    url = resolve_reporting_conversion_url()
                     data = {
                         'batchId':payload['batchid']
                     }
                     log.info('Trying Connection To PDF-Conversion APIs ...')
+                    log.info(f"Using PDF conversion URL: {url}")
                     response = requests.post(url, data=data)
                     log.info(f"After PDF-Conversion: {response}")
+                    response_payload = None
+                    try:
+                        response_payload = response.json()
+                    except ValueError:
+                        response_payload = response.text
 
-                    if response.status_code == 200:
+                    report_conversion_succeeded = (
+                        response.status_code == 200
+                        and isinstance(response_payload, dict)
+                        and response_payload.get('status') == 'SUCCESS'
+                    )
+
+                    if report_conversion_succeeded:
                         log.info("Request successfull!")
                         log.info(f"Response--- {response.status_code}")
 
@@ -861,19 +997,62 @@ class Bulk:
                         log.info("{:^20.2f} {:^20.2f} {:^20.2f}".format(api_start_time, api_end_time, api_total_time))
                         log.info("-"*40)
 
-                    elif response.status_code == 422:
+                        del batchList,attributesData,attributeValues,attacks_fun_list,attackList
+                        return payload['batchid']
+
+                    if response.status_code == 422:
                         log.info("Unprocessable Entity")
-                        log.info(f"{response.json()}")
+                        log.info(f"{response_payload}")
                     else:
                         log.info(f"Request failed with status code: {response.status_code}")
-                        log.info(f"{response.text}")
-                    
+                        log.info(f"{response_payload}")
+
+                    failure_message = (
+                        response_payload.get('message')
+                        if isinstance(response_payload, dict)
+                        else str(response_payload)
+                    )
+                    if not failure_message or str(failure_message).strip().lower() in {'none', 'null'}:
+                        failure_message = 'The reporting tool did not return a usable failure message.'
+                    Batch.update(
+                        batchList['BatchId'],
+                        {
+                            'Status': 'Failed',
+                            'LastUpdatedDateTime': datetime.datetime.now()
+                        }
+                    )
                     del batchList,attributesData,attributeValues,attacks_fun_list,attackList
-                    return payload['batchid']
+                    return {
+                        'runAllAttack': (
+                            'Combined robustness report generation failed. '
+                            f'{failure_message}'
+                        ).strip()
+                    }
                 except Exception as exe:
-                    log.info(exe)
+                    log.error(f"PDF conversion call failed: {type(exe).__name__}: {str(exe)}", exc_info=True)
+                    Batch.update(
+                        batchList['BatchId'],
+                        {
+                            'Status': 'Failed',
+                            'LastUpdatedDateTime': datetime.datetime.now()
+                        }
+                    )
+                    del batchList,attributesData,attributeValues,attacks_fun_list,attackList
+                    return {
+                        'runAllAttack': (
+                            'Combined robustness report generation failed. '
+                            f'PDF conversion request failed: {str(exe).strip() or type(exe).__name__}'
+                        )
+                    }
             else:
-                return 'Oops! Failed to generate Combined Report...'
+                Batch.update(
+                    batchList['BatchId'],
+                    {
+                        'Status': 'Failed',
+                        'LastUpdatedDateTime': datetime.datetime.now()
+                    }
+                )
+                return {'runAllAttack': 'Combined robustness report did not return a valid report artifact.'}
         except Exception as exe:
             log.info(exe)
             if(telemetry_flg == 'True'):

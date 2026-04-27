@@ -7,10 +7,12 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 WORKDIR /app
 
-# Copy requirements first for layer caching
+# Copy lib directory and requirements for layer caching
+COPY lib/ lib/
 COPY requirements/requirements.txt requirements.txt
 
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir transformers==4.44.2
 
 # Copy application code
 COPY . .
@@ -23,4 +25,6 @@ USER appuser
 
 WORKDIR /app/src
 
-CMD ["python3", "main.py"]
+EXPOSE 8000
+
+CMD ["python3", "main_api.py"]

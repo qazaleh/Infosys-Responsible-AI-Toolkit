@@ -70,11 +70,33 @@ async def run_all_attacks(batchId: float = Form(...), dateTime: Optional[datetim
         # payload = {'batchid': batchId}
         payload = {'batchid': batchId, 'dateTime':UT.dateTimeFormat(dateTime)}
         response = Bulk.runAllAttack(payload)
+        if isinstance(response, (int, float)):
+            gc.collect()
+            return {'BatchId': response}
+
+        failure_detail = response.get('runAllAttack') if isinstance(response, dict) else str(response)
         gc.collect()
-        return {'BatchId': response}
+        raise HTTPException(status_code=500, detail=failure_detail or 'Internal security robustness run failed.')
     except Exception as e:
         log.error(f"Error in run_all_attacks: {str(e)}")
         gc.collect()
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@bulk.post('/rai/v1/security_workbench/validateattackrun')
+async def validate_attack_run(batchId: float = Form(...)):
+    try:
+        response = Bulk.validateAttackRunPreconditions({'batchid': batchId})
+        gc.collect()
+        if response.get('status') == 'SUCCESS':
+            return response
+        raise HTTPException(status_code=422, detail=response.get('message') or 'Robustness compatibility validation failed.')
+    except Exception as e:
+        log.error(f"Error in validate_attack_run: {str(e)}")
+        gc.collect()
+        if isinstance(e, HTTPException):
+            raise e
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 # TEMP DEBUG ENDPOINT: View generated reports

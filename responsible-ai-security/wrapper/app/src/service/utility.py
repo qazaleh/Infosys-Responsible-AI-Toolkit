@@ -15,6 +15,7 @@ import io
 import os
 import numpy as np
 import pickle
+import joblib
 #from keras.models import load_model
 import tempfile
 import datetime,time
@@ -164,7 +165,7 @@ class Utility:
             }
     }
 
-    
+
     def find_duplicates(x_train):
 
         """
@@ -233,30 +234,118 @@ class Utility:
             if(telemetry_flg == 'True'):
                 with con.ThreadPoolExecutor() as executor:
                     executor.submit(log.log_error_to_telemetry, "calc_precision_recall", e, apiEndPoint, errorRequestMethod)
-    
+
 
     def safe_load_from_file(file_path):
         try:
-            with open(file_path, 'rb') as f:
-                data = f.read()
+            file_name = ''
+            file_like_object = None
 
-            file_like_object = io.BytesIO(data)
+            if hasattr(file_path, 'read'):
+                file_name = getattr(file_path, 'name', '') or ''
+                current_position = file_path.tell() if hasattr(file_path, 'tell') else None
+                if hasattr(file_path, 'seek'):
+                    file_path.seek(0)
+                data = file_path.read()
+                if current_position is not None and hasattr(file_path, 'seek'):
+                    file_path.seek(current_position)
+                file_like_object = io.BytesIO(data)
+            else:
+                file_name = str(file_path)
+                with open(file_path, 'rb') as f:
+                    data = f.read()
+                file_like_object = io.BytesIO(data)
 
-            original_globals = globals().copy()
-            restricted_globals = {'__builtins__': __builtins__,}
-            globals().update(restricted_globals)
+            lower_name = file_name.lower()
+            load_errors = []
 
-            unpickler = pickle.Unpickler(file_like_object)
-            return unpickler.load()
+            # Many sklearn artifacts in this repo are stored via joblib, even when
+            # the persisted filename does not consistently end with ".joblib".
+            if lower_name.endswith('.joblib'):
+                try:
+                    file_like_object.seek(0)
+                    return joblib.load(file_like_object)
+                except Exception as joblib_error:
+                    load_errors.append(f"joblib: {joblib_error}")
+
+            try:
+                file_like_object.seek(0)
+                unpickler = pickle.Unpickler(file_like_object)
+                return unpickler.load()
+            except Exception as pickle_error:
+                load_errors.append(f"pickle: {pickle_error}")
+
+            try:
+                file_like_object.seek(0)
+                return joblib.load(file_like_object)
+            except Exception as joblib_error:
+                load_errors.append(f"joblib fallback: {joblib_error}")
+
+            compatibility_hint = ""
+            combined_errors = " | ".join(load_errors)
+            lowered_errors = combined_errors.lower()
+            if (
+                'incompatible dtype' in lowered_errors
+                or 'missing_go_to_left' in lowered_errors
+                or "no module named 'pipeline'" in lowered_errors
+            ):
+                compatibility_hint = (
+                    " Likely scikit-learn model compatibility mismatch between the saved artifact "
+                    "and the security service runtime."
+                )
+
+            raise ValueError(
+                f"Unable to deserialize model artifact '{file_name}'. Attempts: {combined_errors}.{compatibility_hint}"
+            )
 
         except Exception as e:
+            log.error(f"safe_load_from_file FAILED: {type(e).__name__}: {str(e)}", exc_info=True)
             if(telemetry_flg == 'True'):
                 with con.ThreadPoolExecutor() as executor:
                     executor.submit(log.log_error_to_telemetry, "safe_load_from_file", e, apiEndPoint, errorRequestMethod)    
+            raise
 
-        finally:
-            globals().clear()
-            globals().update(original_globals)       
+    def patch_sklearn_compatibility(artifact):
+        try:
+            visited = set()
+
+            def _patch(obj):
+                if obj is None:
+                    return
+
+                obj_id = id(obj)
+                if obj_id in visited:
+                    return
+                visited.add(obj_id)
+
+                if hasattr(obj, 'sparse_output') and not hasattr(obj, 'sparse'):
+                    obj.sparse = obj.sparse_output
+
+                if obj.__class__.__name__ == 'SimpleImputer' and not hasattr(obj, 'verbose'):
+                    obj.verbose = 0
+
+                if isinstance(obj, dict):
+                    for value in obj.values():
+                        _patch(value)
+                    return
+
+                if isinstance(obj, (list, tuple, set)):
+                    for value in obj:
+                        _patch(value)
+                    return
+
+                if hasattr(obj, '__dict__'):
+                    for value in vars(obj).values():
+                        _patch(value)
+
+            _patch(artifact)
+            return artifact
+        except Exception as e:
+            log.error(f"patch_sklearn_compatibility FAILED: {type(e).__name__}: {str(e)}", exc_info=True)
+            if(telemetry_flg == 'True'):
+                with con.ThreadPoolExecutor() as executor:
+                    executor.submit(log.log_error_to_telemetry, "patch_sklearn_compatibility", e, apiEndPoint, errorRequestMethod)
+            return artifact
 
 
     def readModelFile(payload):
@@ -314,7 +403,18 @@ class Utility:
                     model_data = load_model(model_path) 
                 else:
                     # model_data = pickle.load(open(model_path, "rb"))
-                    model_data = Utility.safe_load_from_file(model_path)     
+                    model_data = Utility.safe_load_from_file(model_path)
+
+                if isinstance(model_data, dict) and 'model' in model_data:
+                    log.info(f"readModelFile unwrapped dict artifact for model '{modelName}' with keys: {list(model_data.keys())}")
+                    model_data = model_data['model']
+
+                model_data = Utility.patch_sklearn_compatibility(model_data)
+
+                if model_data is None:
+                    raise ValueError(f"Loaded model artifact is None for model '{modelName}' from '{model_path}'")
+
+                log.info(f"readModelFile loaded model '{modelName}' as {type(model_data)} from {model_path}")
 
                 del batchList,modelList,attributesData,attributeValues,modelF
                 return model_data, model_path, modelName, modelFramework
@@ -891,11 +991,13 @@ class Utility:
             reportList = Utility.updateReportsList({'reportList':reportList, 'modelName':payload['modelName'],'attackList':payload['attackList']})
 
             count = 0
+            last_data = None
             for i in range(len(reportList)):
                 count = count + 1
                 if(os.getenv("DB_TYPE") == "mongo"):
                     dataContent = FileStoreDb.findOne(reportList[i]["SecReportId"])
                     data = dataContent["data"]
+                    last_data = data
                     attackname = dataContent['fileName'].split('.')[0]
                     fileName = dataContent["fileName"]
                 else:
@@ -903,6 +1005,7 @@ class Utility:
                     binary_data = dataFile.content
                     temp = io.BytesIO(binary_data)
                     data = temp.read()
+                    last_data = data
                     attackname = reportList[i]["SecReportId"].split('_')[0]
                     content_disposition = dataFile.headers.get('content-disposition')
                     fileName = content_disposition.split(';')[1].split('=')[1].split('.')[0]
@@ -945,13 +1048,14 @@ class Utility:
                                     shutil.copyfileobj(image_file, f)         
                 os.remove(data_path)
 
-            del reportList,data
+            del reportList, last_data
             return count
         except Exception as e:
+            log.error(f"combineReportFile FAILED: {type(e).__name__}: {str(e)}", exc_info=True)
             if(telemetry_flg == 'True'):
                 with con.ThreadPoolExecutor() as executor:
                     executor.submit(log.log_error_to_telemetry, "combineReportFile", e, apiEndPoint, errorRequestMethod)
-            raise Exception
+            raise
 
 
     def attackDesc(payload):
@@ -1540,8 +1644,7 @@ class Utility:
                         }
 
                         .heading-color {
-                            /* color: #8626C3; */
-                            color: #963596;
+                            color: #c88917;
                         }
 
                         .heading-font {
@@ -1549,7 +1652,7 @@ class Utility:
                         }
 
                         .text-color {
-                            color: darkgray;
+                            color: #4f4f4f;
                         }
 
                         .heading-margin {
@@ -1563,14 +1666,13 @@ class Utility:
                         }
 
                         .navbar {
-                            /* background-color: #8626C3; */
-                            background-color: #963596;
-                            color: #fff;
+                            background: linear-gradient(135deg, #f4c86f 0%, #dea037 100%);
+                            color: #2b1a09;
                             padding: 12px;
                             text-align: left;
                             font-size: 22px;
                             width: 98%;
-                            border-radius: 10px;
+                            border-radius: 16px;
                         }
 
                         .datetime-container {
@@ -1600,7 +1702,7 @@ class Utility:
                             bottom: 0;
                             width: 7%;
                             height: 3px;
-                            background-color: rgb(28, 160, 242);
+                            background-color: #dea037;
                         }
 
                         .report-body {
@@ -1839,8 +1941,7 @@ class Utility:
                         }
                     
                         .heading-color {
-                            /* color: #8626C3; */
-                            color: #963596;
+                            color: #c88917;
                         }
 
                         .heading-font {
@@ -1848,7 +1949,7 @@ class Utility:
                         }
 
                         .text-color {
-                            color: darkgray;
+                            color: #4f4f4f;
                         }
 
                         .heading-margin {
@@ -1862,14 +1963,13 @@ class Utility:
                         }
 
                         .navbar {
-                            /* background-color: #8626C3; */
-                            background-color: #963596;
-                            color: #fff;
+                            background: linear-gradient(135deg, #f4c86f 0%, #dea037 100%);
+                            color: #2b1a09;
                             padding: 12px;
                             text-align: left;
                             font-size: 22px;
                             width: 98%;
-                            border-radius: 10px;
+                            border-radius: 16px;
                         }
 
                         .datetime-container {
@@ -1899,7 +1999,7 @@ class Utility:
                             bottom: 0;
                             width: 7%;
                             height: 3px;
-                            background-color: rgb(28, 160, 242);
+                            background-color: #dea037;
                         }
 
                         .report-body {
@@ -2170,17 +2270,7 @@ class Utility:
                 html_data = f"""
                     <body>
                         <div class="report-container">
-                            <div class="navbar">
-                                <b>INFOSYS RESPONSIBLE AI</b>
-                            </div>
-                            <div class="datetime-container">
-                                <span id="datetime">
-                                    <p class="text-color">{payload['reportTime']}</p>
-                                </span>
-                            </div>
-                            <div class="report-header">
-                                <h1 class="heading-color">MODEL ROBUSTNESS ASSESSMENT REPORT</h1>
-                            </div>
+                            {Utility.reportHeaderHtml()}
                             <div>
                                 <h2 class="heading-color heading-margin">OBJECTIVE</h2>
                             </div>
@@ -2262,17 +2352,7 @@ class Utility:
                 html_data = f"""
                     <body>
                         <div class="report-container">
-                            <div class="navbar">
-                                <b>INFOSYS RESPONSIBLE AI</b>
-                            </div>
-                            <div class="datetime-container">
-                                <span id="datetime">
-                                    <p class="text-color">{payload['reportTime']}</p>
-                                </span>
-                            </div>
-                            <div class="report-header">
-                                <h1 class="heading-color">MODEL ROBUSTNESS ASSESSMENT REPORT</h1>
-                            </div>
+                            {Utility.reportHeaderHtml()}
                             <div>
                                 <h2 class="heading-color heading-margin">OBJECTIVE</h2>
                             </div>
@@ -2676,7 +2756,7 @@ class Utility:
                     }
 
                     .heading-color {
-                        color: #8626C3;
+                        color: #c88917;
                     }
 
                     .heading-font {
@@ -2684,7 +2764,7 @@ class Utility:
                     }
 
                     .text-color {
-                        color: darkgray;
+                        color: #4f4f4f;
                     }
 
                     .heading-margin {
@@ -2963,7 +3043,7 @@ class Utility:
                     }
 
                     .heading-color {
-                        color: #8626C3;
+                        color: #c88917;
                     }
 
                     .heading-font {
@@ -2971,7 +3051,7 @@ class Utility:
                     }
 
                     .text-color {
-                        color: darkgray;
+                        color: #4f4f4f;
                     }
 
                     .heading-margin {
@@ -3265,6 +3345,18 @@ class Utility:
             if(telemetry_flg == 'True'):
                 with con.ThreadPoolExecutor() as executor:
                     executor.submit(log.log_error_to_telemetry, "htmlCssContentReport", e, apiEndPoint, errorRequestMethod)
+
+
+    def reportHeaderHtml():
+        generated_time = datetime.datetime.now().strftime('%m-%d-%Y %I:%M:%S %p')
+        return f"""
+            <div style='display: flex; justify-content: center; align-items: center; color:#2b1a09; background: linear-gradient(135deg, #f4c86f 0%, #dea037 100%); font-size:23px; font-family: sans-serif; border-radius: 16px; position: relative; padding: 12px 18px; box-shadow: 0 10px 24px rgba(97, 63, 12, 0.15); margin: 8px 0 14px;'>
+                <h2 style='margin: 0; font-family: sans-serif; color: #2b1a09;'>TrustAI</h2>
+                <span style='position:absolute; right:1; font-size:15px; align-self: center; padding: 0 10px;'>{generated_time}</span>
+            </div>
+            <h3 style='color:#c88917; text-align:left; font-size:19px; font-family: sans-serif; margin: 4px 0 8px;'>ROBUSTNESS REPORT</h3>
+            <p style='font-family: sans-serif; font-size:16px; margin: 0 0 14px; color: #4f4f4f;'>This report summarizes adversarial robustness checks, attack outcomes, and generated insights for the selected model and dataset.</p>
+        """
     
     
     def htmlContentReport(payload):
@@ -3294,6 +3386,7 @@ class Utility:
                 
                     html_data = f"""
                         <body>
+                            {Utility.reportHeaderHtml()}
                             <div class="report-container">
 
                                 <div class="attack-header">
@@ -3341,6 +3434,7 @@ class Utility:
 
                     html_data = f"""
                         <body>
+                            {Utility.reportHeaderHtml()}
                             <div class="report-container">
 
                                 <div class="attack-header">
@@ -3387,6 +3481,7 @@ class Utility:
                     # <h3 class="heading-color heading-margin">Adversial input used for attack and Adversial output generated</h3>
                     html_data = f"""
                         <body>
+                            {Utility.reportHeaderHtml()}
                             <div class="report-container">
 
                                 <div class="attack-header">
@@ -3452,6 +3547,7 @@ class Utility:
                     # <h3 class="heading-color heading-margin">Adversial input used for attack and Adversial output generated</h3> 
                     html_data = f"""
                         <body>
+                            {Utility.reportHeaderHtml()}
                             <div class="report-container">
 
                                 <div class="attack-header">
@@ -4850,4 +4946,3 @@ class Utility:
             if(telemetry_flg == 'True'):
                 with con.ThreadPoolExecutor() as executor:
                     executor.submit(log.log_error_to_telemetry, "isContentSafe", e, apiEndPoint, errorRequestMethod)
-    

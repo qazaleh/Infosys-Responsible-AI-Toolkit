@@ -112,7 +112,7 @@ h1 {
 
 .evaluation-list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 8px;
   margin-bottom: 12px;
 }
@@ -258,15 +258,15 @@ h1 {
   font-size: 0.9rem;
   padding: 8px 10px;
   border-radius: 11px;
-  border: 1px solid #d4e3f2;
-  background: #f8fbff;
-  color: #21425c;
+  border: 1px solid #ecd39a;
+  background: #fffaf0;
+  color: #5a3f12;
 }
 
 .attack-item input[type='checkbox'] {
   width: 15px;
   height: 15px;
-  accent-color: #1167ad;
+  accent-color: #c18414;
 }
 
 .attack-multiselect {

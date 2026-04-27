@@ -50,7 +50,10 @@ logger = logging.getLogger("presidio_analyzer")
         # return self.Entiity
         
 
-nlp = spacy.load("en_core_web_lg")
+try:
+    nlp = spacy.load("en_core_web_lg")
+except OSError:
+    nlp = spacy.blank("en")
         
 
 

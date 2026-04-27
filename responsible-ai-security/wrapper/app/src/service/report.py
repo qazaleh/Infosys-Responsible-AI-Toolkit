@@ -257,6 +257,8 @@ class Report:
     
     def generatecsvreportart(payload):
 
+        foldername = None
+        report_path = None
         try:
             root_path = os.getcwd()
             root_path = UT.getcurrentDirectory() + "/database"
@@ -304,12 +306,16 @@ class Report:
             df = pd.read_csv(csv_path)
             cols = list(df.columns)
             key = 0
+            graph_html = ""
             # if 'target' in cols and 'prediction' in cols:
             #     graph_html = UT.graphForAttack({'folder_path':report_path})
             #     key = 1
             if data['groundTruthClassLabel'] in cols and 'prediction' in cols:
-                graph_html = UT.graphForAttack({'folder_path':report_path, 'target':data['groundTruthClassLabel'], 'attackName':payload["attackName"], 'type':'Tabular'})
-                key = 1
+                try:
+                    graph_html = UT.graphForAttack({'folder_path':report_path, 'target':data['groundTruthClassLabel'], 'attackName':payload["attackName"], 'type':'Tabular'})
+                    key = 1
+                except Exception as graph_error:
+                    log.error(f"generatecsvreportart graphForAttack FAILED for {foldername}: {type(graph_error).__name__}: {str(graph_error)}", exc_info=True)
             
             # Attack Status Data
             field_names = ['Attack id', 'Model Name', 'Attack Name', 'Status', 'Mean Difference']
@@ -400,7 +406,11 @@ class Report:
                     break
 
             # most attackable column
-            column_graph_data = UT.graphForAttackColumn({'report_path':report_path,'adversarial_data_path':os.path.join(report_path,csvfilename),'original_data_path':payload['data_path'],'type':'Tabular', 'attackName':payload['attackName']})
+            column_graph_data = ""
+            try:
+                column_graph_data = UT.graphForAttackColumn({'report_path':report_path,'adversarial_data_path':os.path.join(report_path,csvfilename),'original_data_path':payload['data_path'],'type':'Tabular', 'attackName':payload['attackName']})
+            except Exception as graph_column_error:
+                log.error(f"generatecsvreportart graphForAttackColumn FAILED for {foldername}: {type(graph_column_error).__name__}: {str(graph_column_error)}", exc_info=True)
             
             # Call htmlContentReport
             html_data = UT.htmlContentReport({'attackName':payload["attackName"],'graph_html':graph_html,'attack_status_row':attack_status_row,'attack_ipop_row':attack_ipop_row, 'type':'Tabular', 'column_graph_data':column_graph_data})
@@ -418,6 +428,17 @@ class Report:
             return foldername
         
         except Exception as e:
+            log.error(f"generatecsvreportart FAILED for {foldername}: {type(e).__name__}: {str(e)}", exc_info=True)
             if(telemetry_flg == 'True'):
                 with con.ThreadPoolExecutor() as executor:
                     executor.submit(log.log_error_to_telemetry, "generatecsvreportart", e, apiEndPoint, errorRequestMethod)
+            if report_path and os.path.isdir(report_path):
+                fallback_report = os.path.join(report_path, "report.html")
+                if not os.path.exists(fallback_report):
+                    with open(fallback_report, "w") as file:
+                        file.writelines(UT.htmlCssContentReport({'type':'Tabular'}))
+                        file.write("<html><body><h1>Attack Report</h1><p>Report details were partially generated. See Attack_Samples.csv for extracted results.</p></body></html>")
+                archive_path = f"{report_path}.zip"
+                if not os.path.exists(archive_path):
+                    shutil.make_archive(report_path, 'zip', os.path.dirname(report_path), os.path.basename(report_path))
+                return foldername
