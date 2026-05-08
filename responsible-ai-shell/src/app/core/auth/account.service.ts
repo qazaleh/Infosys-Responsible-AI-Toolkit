@@ -34,8 +34,8 @@ export class AccountService {
    * @param account This is the account object which contains the user details.
    * @returns Observable<{}>
    */
-  save(account: Account): Observable<{}> {
-    return this.http.get<Account>(urlList.server_api_url+ '/api/account');
+  save(account: Account): Observable<Account> {
+    return this.http.put<Account>(urlList.server_api_url + '/account', account, { headers: this.createAuthHeaders() });
   }
 
   /**
@@ -119,22 +119,7 @@ export class AccountService {
    * @returns Observable<Account | null>
    */
   private fetch(): Observable<Account> {
-    const JwtToken = sessionStorage.getItem('jhi-authenticationToken') || localStorage.getItem('jhi-authenticationToken');
-    const token = JwtToken ? this.sanitizeInput(JwtToken) : null;
-    console.log("JwtToken::", JwtToken);
-    console.log("token::", token);
-  
-    // Validate the token format before using it
-    if (token && !this.isValidToken(token)) {
-      throw new Error('Invalid token');
-    }
-  
-    const reqHeader = new HttpHeaders({
-      'Content-Type': 'application/json',
-      'Authorization': token ? 'Bearer ' + token : '',
-    });
-  
-    return this.http.get<Account>(urlList.server_api_url + '/account', { headers: reqHeader });
+    return this.http.get<Account>(urlList.server_api_url + '/account', { headers: this.createAuthHeaders() });
   }
   
   /**
@@ -148,7 +133,9 @@ export class AccountService {
     const previousUrl = this.stateStorageService.getUrl();
     if (previousUrl) {
       this.stateStorageService.clearUrl();
-      this.router.navigateByUrl(previousUrl);
+      if (!previousUrl.startsWith('/account') && previousUrl !== '/login') {
+        this.router.navigateByUrl(previousUrl);
+      }
     }
   }
 
@@ -157,15 +144,23 @@ export class AccountService {
    * @returns string
    */
   getUserNames():string{
-    const fName = this.userIdentity ? this.userIdentity.firstName! :'';
-    const lName = this.userIdentity ? this.userIdentity.lastName! :'';
-    let initials;
-    if(fName && lName){
-      initials = fName.toUpperCase().charAt(0) + lName.toUpperCase().charAt(0);
-    }else{
-      initials = fName.toUpperCase().charAt(0)
+    const firstName = this.userIdentity?.firstName?.trim() ?? '';
+    const lastName = this.userIdentity?.lastName?.trim() ?? '';
+    const login = this.userIdentity?.login?.trim() ?? '';
+
+    if (firstName && lastName) {
+      return firstName.charAt(0).toUpperCase() + lastName.charAt(0).toUpperCase();
     }
-   return initials; 
+
+    if (firstName) {
+      return firstName.charAt(0).toUpperCase();
+    }
+
+    if (login) {
+      return login.charAt(0).toUpperCase();
+    }
+
+    return 'U';
   }
 
   /**
@@ -187,4 +182,18 @@ private isValidToken(token: string): boolean {
   const jwtPattern = /^[A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.[A-Za-z0-9-_.+/=]*$/;
   return jwtPattern.test(token);
 }
+
+  private createAuthHeaders(): HttpHeaders {
+    const jwtToken = sessionStorage.getItem('jhi-authenticationToken') || localStorage.getItem('jhi-authenticationToken');
+    const token = jwtToken ? this.sanitizeInput(jwtToken) : null;
+
+    if (token && !this.isValidToken(token)) {
+      throw new Error('Invalid token');
+    }
+
+    return new HttpHeaders({
+      'Content-Type': 'application/json',
+      Authorization: token ? 'Bearer ' + token : '',
+    });
+  }
 }

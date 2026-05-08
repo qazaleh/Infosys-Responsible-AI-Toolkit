@@ -738,7 +738,14 @@ class FairnessAudit:
             url = os.getenv("REPORT_URL")
             payload = {"batchId": batchId}
             response = requests.request(
-            "POST", url, data=payload, verify=False).json()
+            "POST", url, data=payload, verify=False, timeout=30).json()
+            if not isinstance(response, dict) or response.get("status") != "SUCCESS":
+                detail = (
+                    response.get("message")
+                    if isinstance(response, dict)
+                    else "Report could not be generated"
+                )
+                raise HTTPException(status_code=500, detail=detail)
             
             report_id = self.report.find(batch_id=batchId)
             log.info(report_id)

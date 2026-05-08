@@ -6,24 +6,13 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 -->
 <nav class="navbar navbar-dark navbar-expand-md bg-dark">
     <a class="navbar-brand logo" (click)="collapseNavbar()">
-        <!-- <span class="logo-img"></span> -->
-        <!-- <div class="navbar-title">
-            Responsible&nbsp;<span class="ai-text">AI Office</span>
-        </div> -->
-        <div class="navbar-title">
-            Infosys Responsible AI Office
-        </div>
+        <img class="navbar-logo" src="../assets/images/trustai-logo.png" alt="TrustAI logo" />
     </a>
-    <div class="container" *ngIf="isAuthenticated()">
-        <a class="navbar-cicle" href={{dashboardLink}} target="_blank" matTooltip="Telemetry Dashboard">
-            <img src="../../../assets/images/elastic.png" alt="Icon" class="icon-fluid" />
-        </a>
-    </div>
     <a class="navbar-toggler d-lg-none" href="javascript:void(0);" data-toggle="collapse" data-target="#navbarResponsive" aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation" (click)="toggleNavbar()">
         <fa-icon icon="bars"></fa-icon>
     </a>
     <div class="navbar-collapse collapse" id="navbarResponsive" [ngbCollapse]="isNavbarCollapsed" [ngSwitch]="isAuthenticated()">
-        <ul class="navbar-nav ml-auto">
+        <ul class="navbar-nav account-nav">
             <!-- <li class="nav-item" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">
                 <a class="nav-link" routerLink="/" (click)="collapseNavbar()">
                     <span>

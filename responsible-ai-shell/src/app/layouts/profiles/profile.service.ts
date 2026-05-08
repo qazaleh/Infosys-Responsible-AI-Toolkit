@@ -5,19 +5,14 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."
 */
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { map, shareReplay } from 'rxjs/operators';
-import { Observable } from 'rxjs';
+import { shareReplay } from 'rxjs/operators';
+import { Observable, of } from 'rxjs';
 
-import { ApplicationConfigService } from '../../../app/core/config/application-config.service';
-import { ProfileInfo, InfoResponse } from './profile-info.model';
+import { ProfileInfo } from './profile-info.model';
 
 @Injectable({ providedIn: 'root' })
 export class ProfileService {
-  private infoUrl = this.applicationConfigService.getEndpointFor('management/info');
   private profileInfo$?: Observable<ProfileInfo>;
-
-  constructor(private http: HttpClient, private applicationConfigService: ApplicationConfigService) {}
 
   /**
    * @description this method information of profile
@@ -28,24 +23,11 @@ export class ProfileService {
       return this.profileInfo$;
     }
 
-    this.profileInfo$ = this.http.get<InfoResponse>(this.infoUrl).pipe(
-      map((response: InfoResponse) => {
-        const profileInfo: ProfileInfo = {
-          activeProfiles: response.activeProfiles,
-          inProduction: response.activeProfiles?.includes('prod'),
-          openAPIEnabled: response.activeProfiles?.includes('api-docs'),
-        };
-        if (response.activeProfiles && response['display-ribbon-on-profiles']) {
-          const displayRibbonOnProfiles = response['display-ribbon-on-profiles'].split(',');
-          const ribbonProfiles = displayRibbonOnProfiles.filter(profile => response.activeProfiles?.includes(profile));
-          if (ribbonProfiles.length > 0) {
-            profileInfo.ribbonEnv = ribbonProfiles[0];
-          }
-        }
-        return profileInfo;
-      }),
-      shareReplay()
-    );
+    this.profileInfo$ = of({
+      activeProfiles: ['dev'],
+      inProduction: false,
+      openAPIEnabled: false,
+    }).pipe(shareReplay(1));
     return this.profileInfo$;
   }
 }

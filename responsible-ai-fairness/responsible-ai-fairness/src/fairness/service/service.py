@@ -588,11 +588,16 @@ class FairnessService:
 
             url = os.getenv("REPORT_URL")
             payload = {"batchId": batchId}
-            response = requests.request("POST", url, data=payload, verify=False).json()
+            response = requests.request("POST", url, data=payload, verify=False, timeout=30).json()
             log.info(response)
-            if response is None:
+            if not isinstance(response, dict) or response.get("status") != "SUCCESS":
+                detail = (
+                    response.get("message")
+                    if isinstance(response, dict)
+                    else "Error in generating PDF report"
+                )
                 raise HTTPException(
-                    status_code=500, detail="Error in generating PDF report"
+                    status_code=500, detail=detail
                 )
 
             return objbias_pretrainanalyzeResponse

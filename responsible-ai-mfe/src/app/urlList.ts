@@ -8,10 +8,10 @@ export const urlList = {
   homefilepathurl: 'http://localhost:30055',
   dicomfielpathurl: 'http://localhost:30055',
   masterurl: 'http://localhost:30016/api/v1/rai/admin/ConfigApi',
+  diceServiceUrl: 'http://localhost:8004',
   enableInternetSearch: "true",
   enableInterpret: true,
   authorityAPI: 'http://localhost:30019/v1/rai/backend/pageauthoritynew',
   websocketUrl: 'ws://localhost:5001',
   authToken: 'Bearer None'
 };
-

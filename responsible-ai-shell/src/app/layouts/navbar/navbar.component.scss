@@ -16,9 +16,12 @@ Navbar
 }
 
 .navbar {
-    // padding: 0.2rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     height: 58px;
     top: -1px;
+    background-color: #305669 !important;
     a.nav-link {
         font-weight: 400;
         margin-top: 15px;
@@ -26,23 +29,9 @@ Navbar
 }
 
 .bg-dark {
-    background-color: #8626C3 !important;
+    background-color: #305669 !important;
 }
 
-.container{
-    display: flex;
-    justify-content: space-between;
-  }
-  .navbar-cicle{
-    //   background-color: antiquewhite;
-      display: flex;
-      align-items: center;
-      margin-left: auto;
-    //   height:30px;
-      overflow: hidden;
-      border-radius: 50%;
-      margin-bottom: -8px;
-  }
 /* ==========================================================================
 Logo styles
 ========================================================================== */
@@ -50,6 +39,29 @@ Logo styles
 .logo-img {
     height: 35px;
     display: inline-block;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    min-height: 58px;
+    flex-shrink: 0;
+}
+
+.navbar-logo {
+    display: block;
+    height: 42px;
+    width: auto;
+}
+
+.navbar-collapse {
+    justify-content: flex-end;
+    flex-grow: 1;
+}
+
+.account-nav {
+    margin-left: auto;
+    margin-right: 24px;
 }
 
 // .navbar-title {
@@ -125,10 +137,6 @@ Logo styles
 
 .dropdown-item {
     padding-left: 8px !important;
-}
-
-.ml-auto {
-    margin-right: 40px !important;
 }
 
 .dropdown-item:hover,

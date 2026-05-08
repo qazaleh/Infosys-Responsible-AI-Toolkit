@@ -498,10 +498,15 @@ class SuccessRateService:
             url = os.getenv("REPORT_URL")
             payload = {"batchId": batchId}
             response = requests.request(
-            "POST", url, data=payload, verify=False).json()
+            "POST", url, data=payload, verify=False, timeout=30).json()
             print(response)
-            if response['status'] != "SUCCESS":
-                raise HTTPException(status_code=500, detail="Report could not be generated")
+            if not isinstance(response, dict) or response.get('status') != "SUCCESS":
+                detail = (
+                    response.get("message")
+                    if isinstance(response, dict)
+                    else "Report could not be generated"
+                )
+                raise HTTPException(status_code=500, detail=detail)
             update_status=self.batch.update(batch_id=batchId, value={"Status": "Completed"})
             if not update_status:
                 raise HTTPException(status_code=500, detail="Batch Status could not be updated in DB")

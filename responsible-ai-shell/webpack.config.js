@@ -37,7 +37,7 @@ module.exports = {
 
             // For hosts (please adjust)
             remotes: {
-                "responsible-ui": 'http://localhost:30025' + '/remoteEntry.js',
+                "responsible-ui": 'http://mfe:30055' + '/remoteEntry.js',
 
 
             },

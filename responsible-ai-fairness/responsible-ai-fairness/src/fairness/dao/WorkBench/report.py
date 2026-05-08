@@ -54,8 +54,9 @@ class Report:
         records = list(cursor)
 
         result = next((record for record in records if not str(record.get("ReportName", "")).endswith(".html")), None)
-        if result is None and records:
-            result = records[0]
         if result is None:
-            raise HTTPException(status_code=500, detail="Batch ID not found")
+            raise HTTPException(
+                status_code=404,
+                detail="No finalized fairness report is available for this batch yet."
+            )
         return result

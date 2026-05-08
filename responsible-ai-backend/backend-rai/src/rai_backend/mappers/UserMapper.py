@@ -9,7 +9,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel, Field
 from datetime import datetime
 
@@ -23,6 +23,17 @@ class NewAuthRequest(BaseModel):
     username:str=Field(example="abc@infosys.com")
     cred:str=Field(example="Abc@123")
     rememberMe:bool=Field(example=True)
+
+class UpdateAccountRequest(BaseModel):
+    id: int = Field(example=3)
+    firstName: str = Field(example="abc")
+    lastName: Optional[str] = Field(default="")
+    email: Optional[str] = Field(default="")
+    langKey: Optional[str] = Field(default="en")
+
+class ChangePasswordRequest(BaseModel):
+    currentPassword: str = Field(example="Abc@123")
+    newPassword: str = Field(example="Xyz@123")
 
 class UpdateUserRequest(BaseModel):
     activated:bool=Field(example=True)

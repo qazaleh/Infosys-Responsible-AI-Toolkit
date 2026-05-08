@@ -72,6 +72,8 @@ interface ApiConfig {
   explainMethods: string;
   explainGet: string;
   explainReport: string;
+  diceCounterfactual: string;
+  diceReport: string;
   fairnessReport: string;
   fairnessDownload: string;
   securityApplicableAttacks: string;
@@ -90,6 +92,41 @@ interface ExplainabilityMethodCard {
   methodName: string;
   methodDescription: string;
   rows: ExplainabilityRow[];
+}
+
+interface DiceChangedFeature {
+  featureName: string;
+  originalValue: string | number | boolean | null;
+  counterfactualValue: string | number | boolean | null;
+  absoluteChange?: number | null;
+}
+
+interface DiceCounterfactualExample {
+  counterfactualIndex: number;
+  predictedClass: string | number | boolean | null;
+  changedFeatureCount: number;
+  distanceL1: number;
+  data: Record<string, string | number | boolean | null>;
+  changedFeatures: DiceChangedFeature[];
+  interpretation: string;
+}
+
+interface DiceCounterfactualResult {
+  modelName: string;
+  datasetName: string;
+  modelType: string;
+  targetColumn: string;
+  featureNames: string[];
+  inputIndex: number;
+  predictedClass: string | number | boolean | null;
+  desiredClass: string | number | boolean | null;
+  originalInstance: Record<string, string | number | boolean | null>;
+  counterfactuals: DiceCounterfactualExample[];
+  summary: {
+    counterfactualCount: number;
+    averageChangedFeatures: number;
+    averageDistanceL1: number;
+  };
 }
 
 interface TenetRunStatus {
@@ -128,6 +165,8 @@ export class MvpHomeComponent {
     explainMethods: 'http://localhost:8002/rai/v1/explainability/methods/get',
     explainGet: 'http://localhost:8002/rai/v1/explainability/explanation/get',
     explainReport: 'http://localhost:8002/rai/v1/explainability/report/generate',
+    diceCounterfactual: 'http://localhost:8004/rai/v1/dice/counterfactual',
+    diceReport: 'http://localhost:8004/rai/v1/dice/report',
     fairnessReport: 'http://localhost:8000/api/v1/fairness/wrapper/batchId',
     fairnessDownload: 'http://localhost:8000/api/v1/fairness/wrapper/download',
     securityApplicableAttacks: 'http://localhost:30023/rai/v1/security_workbench/attack',
@@ -245,9 +284,13 @@ export class MvpHomeComponent {
   };
   selectedFairnessDatasetKey = 'fairness-banking-loan';
 
+  explainabilityMode: 'STANDARD' | 'DICE' = 'STANDARD';
   explainSampleLimit = 3;
   showExplainPreview = false;
   includeGlobalKernelExplainer = false;
+  diceInputIndex = 0;
+  diceDesiredClass = 'opposite';
+  diceTotalCounterfactuals = 3;
 
   fairnessBiasType = 'PRETRAIN';
   fairnessMethodType = 'ALL';
@@ -266,6 +309,7 @@ export class MvpHomeComponent {
   datasetColumns: string[] = [];
 
   evaluationInProgress = false;
+  reportDownloadInProgress = false;
   currentStepMessage = '';
   evaluationError = '';
   evaluationSuccess = '';
@@ -273,6 +317,7 @@ export class MvpHomeComponent {
   tenetRunStatuses: TenetRunStatus[] = [];
 
   explainabilityCards: ExplainabilityMethodCard[] = [];
+  diceResult: DiceCounterfactualResult | null = null;
   generatedBatchByTenet: Record<string, number | null> = {
     Explainability: null,
     Fairness: null,
@@ -332,7 +377,7 @@ export class MvpHomeComponent {
   }
 
   get canDownloadReport(): boolean {
-    return !this.evaluationInProgress && this.availableDownloadTenets.length > 0;
+    return !this.evaluationInProgress && !this.reportDownloadInProgress && this.availableDownloadTenets.length > 0;
   }
 
   get fairnessMethodOptions(): FairnessMethodOption[] {
@@ -346,10 +391,20 @@ export class MvpHomeComponent {
     return !this.evaluationInProgress && this.availableDownloadTenets.length > 1;
   }
 
+  get reportDownloadStatusMessage(): string {
+    const tenetToDownload = this.selectedDownloadTenet || this.availableDownloadTenets[0] || 'report';
+    return `Downloading ${tenetToDownload.toLowerCase()} report...`;
+  }
+
   onUploadedMetaChange(): void {
     this.selectedModel = this.getSelectedClassifierModelAsset()?.modelFileName || '';
     this.resetEvaluationState();
     void this.refreshRobustnessAttackOptions();
+  }
+
+  onExplainabilityModeChange(mode: 'STANDARD' | 'DICE'): void {
+    this.explainabilityMode = mode;
+    this.resetEvaluationState();
   }
 
   setActiveTab(tabName: 'Explainability' | 'Fairness' | 'Robustness'): void {
@@ -447,6 +502,7 @@ export class MvpHomeComponent {
     this.reportStatus = '';
     this.currentStepMessage = 'Preparing dataset and model files...';
     this.explainabilityCards = [];
+    this.diceResult = null;
     this.generatedBatchByTenet = {
       Explainability: null,
       Fairness: null,
@@ -502,7 +558,11 @@ export class MvpHomeComponent {
 
       if (this.activeTab === 'Explainability') {
         try {
-          await this.runExplainabilityFlow(userId, datasetId, modelId, selectedDatasetOption);
+          if (this.explainabilityMode === 'DICE') {
+            await this.runDiceFlow(userId, datasetId, modelId, selectedDatasetOption);
+          } else {
+            await this.runExplainabilityFlow(userId, datasetId, modelId, selectedDatasetOption);
+          }
           runSuccess.push('Explainability');
         } catch (error: any) {
           runErrors.push(`Explainability: ${this.resolveErrorMessage(error)}`);
@@ -546,7 +606,7 @@ export class MvpHomeComponent {
   }
 
   async onDownloadReport(): Promise<void> {
-    if (this.evaluationInProgress) {
+    if (this.evaluationInProgress || this.reportDownloadInProgress) {
       return;
     }
 
@@ -558,13 +618,20 @@ export class MvpHomeComponent {
     }
 
     try {
+      this.reportDownloadInProgress = true;
+      this.evaluationError = '';
+      this.reportStatus = this.reportDownloadStatusMessage;
       if (tenetToDownload === 'Fairness') {
         await this.downloadFairnessReport(batchId);
       } else {
         await this.downloadWorkbenchReport(batchId, tenetToDownload.toLowerCase());
       }
+      this.reportStatus = `${tenetToDownload} report downloaded successfully.`;
     } catch (error: any) {
+      this.reportStatus = '';
       this.evaluationError = this.resolveErrorMessage(error, 'Report download failed.');
+    } finally {
+      this.reportDownloadInProgress = false;
     }
   }
 
@@ -716,6 +783,66 @@ export class MvpHomeComponent {
       batchId: explainBatchId,
       reportMessage,
     };
+  }
+
+  private async runDiceFlow(
+    userId: string,
+    datasetId: number,
+    modelId: number,
+    selectedDatasetOption: DatasetOption
+  ): Promise<void> {
+    this.setTenetStatus('Explainability', 'running', 'Generating DiCE counterfactuals...');
+    this.currentStepMessage = 'Generating DiCE batch...';
+
+    const batchGenerationResponse: any = await firstValueFrom(
+      this.http.post(this.apiConfig.batchGeneration, {
+        userId,
+        title: `MVP DiCE - ${selectedDatasetOption.datasetName}`,
+        modelId,
+        dataId: datasetId,
+        tenetName: ['Explainability'],
+        appExplanationMethods: ['DICE-COUNTERFACTUAL'],
+      })
+    );
+
+    const diceBatch = this.extractBatchByTenet(batchGenerationResponse, 1.1);
+    const diceBatchId = Number(diceBatch?.BatchId || 0);
+    if (!diceBatchId) {
+      throw new Error('Batch was created without a valid BatchId for DiCE.');
+    }
+    this.generatedBatchByTenet['Explainability'] = diceBatchId;
+
+    this.currentStepMessage = 'Generating DiCE counterfactual preview...';
+    const dicePreviewResponse: any = await firstValueFrom(
+      this.http.post(this.apiConfig.diceCounterfactual, {
+        modelId,
+        datasetId,
+        inputIndex: this.diceInputIndex,
+        desiredClass: this.diceDesiredClass,
+        totalCounterfactuals: this.diceTotalCounterfactuals,
+      })
+    );
+    this.diceResult = (dicePreviewResponse?.result || null) as DiceCounterfactualResult | null;
+    if (!this.diceResult) {
+      throw new Error('DiCE did not return any counterfactuals for the selected request.');
+    }
+
+    this.currentStepMessage = 'Generating DiCE report...';
+    const diceReportResponse: any = await firstValueFrom(
+      this.http.post(this.apiConfig.diceReport, {
+        batchId: diceBatchId,
+        inputIndex: this.diceInputIndex,
+        desiredClass: this.diceDesiredClass,
+        totalCounterfactuals: this.diceTotalCounterfactuals,
+      })
+    );
+    const reportMessage =
+      diceReportResponse?.status === 'SUCCESS'
+        ? 'DiCE report generated successfully.'
+        : diceReportResponse?.message || 'DiCE report generation returned non-success.';
+
+    this.reportStatus = reportMessage;
+    this.setTenetStatus('Explainability', 'success', reportMessage, diceBatchId);
   }
 
   private isRecoverableKernelFailure(error: any): boolean {
@@ -886,6 +1013,11 @@ export class MvpHomeComponent {
   private buildApiConfig(configResult: any): ApiConfig {
     const workbenchBase = configResult?.Workbench || 'http://localhost:30020';
     const explainabilityBase = configResult?.Explainability_Demo || 'http://localhost:8002';
+    const configuredDiceBase =
+      urlList?.diceServiceUrl && !String(urlList.diceServiceUrl).includes('DICE_SERVICE_URL')
+        ? urlList.diceServiceUrl
+        : 'http://localhost:8004';
+    const diceBase = configResult?.DiceCounterfactual || configuredDiceBase;
     const fairnessBase = configResult?.Fairness || 'http://localhost:8000';
     const securityWrapperBase = configResult?.SecurityWrapper || 'http://localhost:30023';
     const securityWorkbenchBase = configResult?.SecurityWorkbench || securityWrapperBase;
@@ -914,6 +1046,14 @@ export class MvpHomeComponent {
       explainReport: this.joinUrl(
         explainabilityBase,
         configResult?.ExplainGenReport || '/rai/v1/explainability/report/generate'
+      ),
+      diceCounterfactual: this.joinUrl(
+        diceBase,
+        configResult?.DiceCounterfactualGenerate || '/rai/v1/dice/counterfactual'
+      ),
+      diceReport: this.joinUrl(
+        diceBase,
+        configResult?.DiceCounterfactualReport || '/rai/v1/dice/report'
       ),
       fairnessReport: this.joinUrl(
         fairnessBase,
@@ -1068,6 +1208,8 @@ export class MvpHomeComponent {
       config.explainMethods,
       config.explainGet,
       config.explainReport,
+      config.diceCounterfactual,
+      config.diceReport,
       config.fairnessReport,
       config.fairnessDownload,
       config.securityApplicableAttacks,
@@ -1357,6 +1499,17 @@ export class MvpHomeComponent {
       .toLowerCase();
   }
 
+  private getUserScopeSuffix(): string {
+    const loggedInUser = this.getLoggedInUser();
+    const normalizedUser = String(loggedInUser || 'admin')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+
+    return normalizedUser || 'admin';
+  }
+
   private sleep(milliseconds: number): Promise<void> {
     return new Promise((resolve) => {
       setTimeout(resolve, milliseconds);
@@ -1427,6 +1580,16 @@ export class MvpHomeComponent {
     }
 
     return formattedValue.length > 40 ? `${formattedValue.slice(0, 37)}...` : formattedValue;
+  }
+
+  getDiceFeatureEntries(
+    featureMap: Record<string, string | number | boolean | null> | null | undefined
+  ): Array<{ key: string; value: string | number | boolean | null }> {
+    if (!featureMap) {
+      return [];
+    }
+
+    return Object.entries(featureMap).map(([key, value]) => ({ key, value }));
   }
 
   getFeatureValueTitle(value: string | number): string {
@@ -1525,12 +1688,13 @@ export class MvpHomeComponent {
       return null;
     }
 
+    const userScope = this.getUserScopeSuffix();
     const modelFileName = selectedModelAsset.modelFileName;
-    const modelName = `${this.stripExtension(modelFileName)}_mvp_home`;
+    const modelName = `${this.stripExtension(modelFileName)}_${userScope}_mvp_home`;
 
     return {
-      label: `${this.fixedDatasetName}::${modelName}`,
-      datasetName: this.fixedDatasetName,
+      label: `${this.fixedDatasetName}_${userScope}::${modelName}`,
+      datasetName: `${this.fixedDatasetName}_${userScope}`,
       datasetFileName: this.fixedDatasetFileName,
       datasetAssetPath: this.fixedDatasetAssetPath,
       modelName,
@@ -1549,12 +1713,13 @@ export class MvpHomeComponent {
       return null;
     }
 
+    const userScope = this.getUserScopeSuffix();
     const modelFileName = selectedModelAsset.modelFileName;
-    const modelName = `${this.stripExtension(modelFileName)}_fairness_hidden`;
+    const modelName = `${this.stripExtension(modelFileName)}_${userScope}_fairness_hidden`;
 
     return {
-      label: `${fairnessDatasetOption.datasetName}::${this.fairnessBiasType.toLowerCase()}`,
-      datasetName: fairnessDatasetOption.datasetName,
+      label: `${fairnessDatasetOption.datasetName}_${userScope}::${this.fairnessBiasType.toLowerCase()}`,
+      datasetName: `${fairnessDatasetOption.datasetName}_${userScope}`,
       datasetFileName: fairnessDatasetOption.datasetFileName,
       datasetAssetPath: fairnessDatasetOption.datasetAssetPath,
       modelName,
@@ -1865,7 +2030,18 @@ export class MvpHomeComponent {
       }
     }
 
-    this.downloadBlob(response.body, fileName);
+    const reportBlob = response?.body as Blob;
+    if (!reportBlob || !(await this.isZipBlob(reportBlob))) {
+      const errorText = reportBlob ? await reportBlob.text() : '';
+      throw new Error(
+        this.extractDownloadErrorMessage(
+          errorText,
+          'Fairness report download returned an invalid archive.'
+        )
+      );
+    }
+
+    this.downloadBlob(reportBlob, fileName);
   }
 
   private downloadBlob(blobContent: Blob, fileName: string): void {
@@ -1917,6 +2093,9 @@ export class MvpHomeComponent {
 
   private getServiceLabelFromUrl(requestUrl: string): string {
     const normalizedUrl = (requestUrl || '').toLowerCase();
+    if (normalizedUrl.includes('/rai/v1/dice/')) {
+      return 'DiCE service';
+    }
     if (normalizedUrl.includes('/fairness/')) {
       return 'fairness service';
     }
@@ -2010,6 +2189,7 @@ export class MvpHomeComponent {
     this.currentStepMessage = '';
     this.tenetRunStatuses = [];
     this.explainabilityCards = [];
+    this.diceResult = null;
     this.generatedBatchByTenet = {
       Explainability: null,
       Fairness: null,

@@ -40,10 +40,13 @@ async def html_to_pdf_conversion(batchId: float=Form(...)):
         log.info(f"total_time: {total_time}")
         gc.collect()
         return response
-    except Exception as exc:
-        log.error(exc.__dict__)
+    except HTTPException:
         log.info("Exit create usecase routing method")
-        raise HTTPException(**exc.__dict__)
+        raise
+    except Exception as exc:
+        log.error(getattr(exc, "__dict__", {"detail": str(exc)}))
+        log.info("Exit create usecase routing method")
+        raise HTTPException(status_code=500, detail=str(exc))
 
 @report.post('/v1/report/converttopdfreport')
 async def convert_to_pdf_report(batchId:float=Form(...)):
@@ -72,11 +75,13 @@ async def download_report(batchId:float=Form(...)):
         log.info(f"total_time: {total_time}")
         gc.collect()
         return response
-    except Exception as exc:
-        log.error(exc.__dict__)
+    except HTTPException:
         log.info("Exit create usecase routing method")
-        raise HTTPException(**exc.__dict__)
+        raise
+    except Exception as exc:
+        log.error(getattr(exc, "__dict__", {"detail": str(exc)}))
+        log.info("Exit create usecase routing method")
+        raise HTTPException(status_code=500, detail=str(exc))
 
 # ------------------------------------------------------------------------------------
-
 

@@ -21,6 +21,7 @@ const URLDATA = {
     HOMEFILEPATHURL: null,
     DICOMFILEPATHURL: null,
     MASTERURL: null,
+    DICE_SERVICE_URL: null,
     ENABLESEARCH: null,
     NG_SERVE_CMD: null,
     AUTHORITY_API: null,
@@ -117,6 +118,7 @@ const updateURLlistTs = async() => {
             .replace(/HOMEFILEPATHURL/g, URLDATA.HOMEFILEPATHURL)
             .replace(/DICOMFILEPATHURL/g, URLDATA.DICOMFILEPATHURL)
             .replace(/MASTERURL/g, URLDATA.MASTERURL)
+            .replace(/DICE_SERVICE_URL/g, URLDATA.DICE_SERVICE_URL)
             .replace(/'ENABLESEARCH'/g, JSON.stringify(URLDATA.ENABLESEARCH)).replace(/'ENABLEINTERPRET'/g, URLDATA.ENABLEINTERPRET)
             .replace(/AUTHORITY_API/g, URLDATA.AUTHORITY_API)
             .replace(/AUTH_TOKEN/g, URLDATA.AUTH_TOKEN)
@@ -130,6 +132,7 @@ const setDataFromENV = () => {
     (URLDATA['HOMEFILEPATHURL'] = process.env['HOMEFILEPATHURL']),
     (URLDATA['DICOMFILEPATHURL'] = process.env['DICOMFILEPATHURL']),
     (URLDATA['MASTERURL'] = process.env['MASTERURL']),
+    (URLDATA['DICE_SERVICE_URL'] = process.env['DICE_SERVICE_URL']),
     (URLDATA['ENABLESEARCH'] = process.env['ENABLESEARCH']),
     (URLDATA['ENABLEINTERPRET'] = process.env['ENABLEINTERPRET']),
     (URLDATA['AUTHORITY_API'] = process.env['AUTHORITY_API']),
@@ -143,6 +146,7 @@ const runLocally = async() => {
     (URLDATA['HOMEFILEPATHURL'] = 'http://localhost:30055'),
     (URLDATA['DICOMFILEPATHURL'] = 'http://localhost:30055'),
     (URLDATA['MASTERURL'] = 'https://rai-toolkit-dev.az.ad.idemo-ppc.com/api/v1/rai/admin/ConfigApi'),
+    (URLDATA['DICE_SERVICE_URL'] = 'http://localhost:8004'),
     (URLDATA['ENABLESEARCH'] = ['admin', 'user']),
     (URLDATA['ENABLEINTERPRET'] = true),
     (URLDATA['AUTHORITY_API'] = 'https://rai-toolkit-dev.az.ad.idemo-ppc.com/v1/rai/backend/pageauthoritynew'),

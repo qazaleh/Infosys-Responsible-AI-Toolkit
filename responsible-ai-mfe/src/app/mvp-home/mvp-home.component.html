@@ -6,11 +6,11 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 -->
 <div class="mvp-home-page">
   <section class="mvp-home-card">
-    <div class="brand-header">
+    <!-- <div class="brand-header">
       <div class="brand-lockup">
         <img class="brand-logo" src="assets/logo/logo.png" alt="Trust AI logo" />
       </div>
-    </div>
+    </div> -->
 
     <div class="evaluation-list tab-list" role="tablist" aria-label="Evaluation tabs">
       <button
@@ -28,6 +28,24 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     <section class="setup-panel" *ngIf="isExplainabilityTab">
       <h3>Explainability Setup</h3>
       <p class="section-label">Using dataset: <strong>banking_loan_training.csv</strong></p>
+      <div class="evaluation-list mode-list" aria-label="Explainability modes">
+        <button
+          type="button"
+          class="evaluation-item tab-button"
+          [class.active]="explainabilityMode === 'STANDARD'"
+          (click)="onExplainabilityModeChange('STANDARD')"
+        >
+          <span>Standard Explainability</span>
+        </button>
+        <button
+          type="button"
+          class="evaluation-item tab-button"
+          [class.active]="explainabilityMode === 'DICE'"
+          (click)="onExplainabilityModeChange('DICE')"
+        >
+          <span>Counterfactual with DiCE</span>
+        </button>
+      </div>
       <div class="form-grid compact">
         <label>
           <span>Target Classifier</span>
@@ -50,6 +68,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
           </select>
         </label>
       </div>
+
+      <ng-container *ngIf="explainabilityMode === 'STANDARD'; else diceSetupBlock">
       <label class="inline-toggle">
         <input type="checkbox" [(ngModel)]="showExplainPreview" />
         <span>Show in-page explanation preview</span>
@@ -66,6 +86,38 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
         />
       </div>
       <p class="hint-line">Default runs report only (faster and more stable).</p>
+      </ng-container>
+
+      <ng-template #diceSetupBlock>
+        <div class="form-grid compact">
+          <label>
+            <span>Selected Row Index</span>
+            <input class="compact-input" type="number" min="0" [(ngModel)]="diceInputIndex" />
+          </label>
+          <label>
+            <span>Desired Class</span>
+            <input
+              class="compact-input"
+              type="text"
+              [(ngModel)]="diceDesiredClass"
+              placeholder="Use opposite, 0, 1, or a class label"
+            />
+          </label>
+          <label>
+            <span>Counterfactual Count</span>
+            <input
+              class="compact-input"
+              type="number"
+              min="1"
+              max="10"
+              [(ngModel)]="diceTotalCounterfactuals"
+            />
+          </label>
+        </div>
+        <p class="hint-line">
+          DiCE runs in its own isolated service, so SHAP/LIME/global explainability stays untouched.
+        </p>
+      </ng-template>
     </section>
 
     <section class="setup-panel" *ngIf="isFairnessTab">
@@ -205,10 +257,14 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       }}
     </button>
 
-    <section class="status-stack" *ngIf="evaluationInProgress || evaluationError || evaluationSuccess || reportStatus">
+    <section class="status-stack" *ngIf="evaluationInProgress || reportDownloadInProgress || evaluationError || evaluationSuccess || reportStatus">
       <p class="status-row in-progress" *ngIf="evaluationInProgress">
         <span class="dot-spinner" aria-hidden="true"></span>
         {{ currentStepMessage || 'Evaluation in progress...' }}
+      </p>
+      <p class="status-row in-progress" *ngIf="reportDownloadInProgress">
+        <span class="dot-spinner" aria-hidden="true"></span>
+        {{ reportDownloadStatusMessage }}
       </p>
       <p class="status-row success" *ngIf="evaluationSuccess">{{ evaluationSuccess }}</p>
       <p class="status-row report" *ngIf="reportStatus">{{ reportStatus }}</p>
@@ -228,7 +284,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       </p>
     </section>
 
-    <section class="report-container" *ngIf="canDownloadReport || explainabilityCards.length > 0">
+    <section class="report-container" *ngIf="canDownloadReport || explainabilityCards.length > 0 || diceResult">
       <div class="report-header">
         <h2>Evaluation Reports</h2>
         <div class="download-actions">
@@ -236,6 +292,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
             class="download-select"
             [(ngModel)]="selectedDownloadTenet"
             *ngIf="shouldShowDownloadTenetPicker"
+            [disabled]="reportDownloadInProgress"
           >
             <option *ngFor="let tenetName of availableDownloadTenets" [value]="tenetName">
               {{ tenetName }}
@@ -248,7 +305,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
             [disabled]="!canDownloadReport"
             title="Download generated toolkit report"
           >
-            Download Report
+            {{ reportDownloadInProgress ? 'Downloading Report...' : 'Download Report' }}
           </button>
         </div>
       </div>
@@ -291,6 +348,83 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
               <p class="empty-message" *ngIf="!row.explanation || row.explanation.length === 0">
                 No feature importance values were returned.
               </p>
+            </section>
+          </div>
+        </div>
+      </article>
+
+      <article class="method-card" *ngIf="diceResult">
+        <h3>DiCE Counterfactual Result</h3>
+        <p class="method-description">
+          Original prediction: <strong>{{ diceResult.predictedClass }}</strong>
+          <span class="separator-dot">•</span>
+          Desired prediction: <strong>{{ diceResult.desiredClass }}</strong>
+          <span class="separator-dot">•</span>
+          Selected row: <strong>{{ diceResult.inputIndex }}</strong>
+        </p>
+
+        <div class="row-grid">
+          <section class="data-panel">
+            <h4>Original Instance</h4>
+            <ul class="feature-list">
+              <li *ngFor="let feature of getDiceFeatureEntries(diceResult.originalInstance)">
+                <span class="feature-name">{{ feature.key }}</span>
+                <span class="feature-value">{{ feature.value }}</span>
+              </li>
+            </ul>
+          </section>
+
+          <section class="data-panel">
+            <h4>Summary</h4>
+            <ul class="feature-list">
+              <li>
+                <span class="feature-name">Counterfactuals</span>
+                <span class="feature-value">{{ diceResult.summary.counterfactualCount }}</span>
+              </li>
+              <li>
+                <span class="feature-name">Avg. Changed Features</span>
+                <span class="feature-value">{{ diceResult.summary.averageChangedFeatures }}</span>
+              </li>
+              <li>
+                <span class="feature-name">Avg. L1 Distance</span>
+                <span class="feature-value">{{ diceResult.summary.averageDistanceL1 }}</span>
+              </li>
+            </ul>
+          </section>
+        </div>
+
+        <div class="row-card" *ngFor="let example of diceResult.counterfactuals">
+          <div class="row-meta">
+            <span class="row-title">Counterfactual {{ example.counterfactualIndex }}</span>
+            <span class="prediction-chip">Prediction: {{ example.predictedClass }}</span>
+          </div>
+
+          <p class="method-description">{{ example.interpretation }}</p>
+
+          <div class="row-grid">
+            <section class="data-panel">
+              <h4>Counterfactual Values</h4>
+              <ul class="feature-list">
+                <li *ngFor="let feature of getDiceFeatureEntries(example.data)">
+                  <span class="feature-name">{{ feature.key }}</span>
+                  <span class="feature-value">{{ feature.value }}</span>
+                </li>
+              </ul>
+            </section>
+
+            <section class="data-panel">
+              <h4>Changed Features</h4>
+              <ul class="feature-list" *ngIf="example.changedFeatures.length > 0; else noChangedFeatures">
+                <li *ngFor="let change of example.changedFeatures">
+                  <span class="feature-name">{{ change.featureName }}</span>
+                  <span class="feature-value">
+                    {{ change.originalValue }} → {{ change.counterfactualValue }}
+                  </span>
+                </li>
+              </ul>
+              <ng-template #noChangedFeatures>
+                <p class="empty-message">No feature changes were returned.</p>
+              </ng-template>
             </section>
           </div>
         </div>

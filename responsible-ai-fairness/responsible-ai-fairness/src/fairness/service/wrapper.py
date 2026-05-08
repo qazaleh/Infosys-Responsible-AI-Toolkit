@@ -154,6 +154,11 @@ class FairnessWorkbench:
         print(report_id)
         reportId = report_id['ReportFileId']
         reportName=report_id['ReportName']
+        if reportName.endswith('.html'):
+            raise HTTPException(
+                status_code=409,
+                detail='Fairness report is not finalized yet. HTML placeholders cannot be downloaded as the final report.'
+            )
         #check extension of the file
         print(reportName)
         container_name=""

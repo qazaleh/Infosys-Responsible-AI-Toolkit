@@ -20,7 +20,7 @@ export class SettingsComponent implements OnInit {
   csrfToken: string;
   settingsForm = this.fb.group({
     firstName: [undefined, [Validators.required, Validators.minLength(1), Validators.maxLength(50)]],
-    lastName: [undefined, [Validators.required, Validators.minLength(1), Validators.maxLength(50)]],
+    lastName: ['', [Validators.maxLength(50)]],
     email: [undefined, [Validators.required, Validators.minLength(5), Validators.maxLength(254), Validators.email]],
   });
 
@@ -34,9 +34,9 @@ export class SettingsComponent implements OnInit {
     this.accountService.identity().subscribe(account => {
       if (account) {
         this.settingsForm.patchValue({
-          firstName: account.firstName,
-          lastName: account.lastName,
-          email: account.email,
+          firstName: account.firstName ?? '',
+          lastName: account.lastName ?? '',
+          email: account.email ?? '',
         });
 
         this.account = account;
@@ -55,10 +55,10 @@ export class SettingsComponent implements OnInit {
     this.account.lastName = this.settingsForm.get('lastName')!.value;
     this.account.email = this.settingsForm.get('email')!.value;
 
-    this.accountService.save(this.account).subscribe(() => {
+    this.accountService.save(this.account).subscribe(updatedAccount => {
       this.success = true;
-
-      this.accountService.authenticate(this.account);
+      this.account = updatedAccount;
+      this.accountService.authenticate(updatedAccount);
     });
   }
 }

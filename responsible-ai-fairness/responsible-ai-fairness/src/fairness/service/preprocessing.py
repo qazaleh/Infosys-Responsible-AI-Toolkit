@@ -375,11 +375,26 @@ class FairnessServicePreproc:
             payload = {"batchId": batchId}
             if url and str(url).strip().lower().startswith(("http://", "https://")):
                 try:
-                    requests.request("POST", url, data=payload, verify=False, timeout=10)
+                    report_response = requests.request(
+                        "POST",
+                        url,
+                        data=payload,
+                        verify=False,
+                        timeout=30
+                    ).json()
+                    if not isinstance(report_response, dict) or report_response.get("status") != "SUCCESS":
+                        detail = (
+                            report_response.get("message")
+                            if isinstance(report_response, dict)
+                            else "Fairness report conversion did not return a valid response."
+                        )
+                        raise HTTPException(status_code=500, detail=detail)
                 except Exception as report_error:
                     log.warning(f"Report conversion trigger failed for batch {batchId}: {report_error}")
+                    raise
             else:
                 log.warning("REPORT_URL is empty or invalid. Skipping report trigger call.")
+                raise HTTPException(status_code=500, detail="REPORT_URL is empty or invalid.")
             return objbias_pretrainanalyzeResponse
 
 

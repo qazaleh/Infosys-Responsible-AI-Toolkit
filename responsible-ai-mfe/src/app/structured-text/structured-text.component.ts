@@ -352,7 +352,7 @@ export class StructuredTextComponent implements OnInit {
     if (batch.TenetId == 2.2) {
     const payload = {'Batch_id': id}
       this.https.post(this.FairnessWrapDownload, payload ,{ responseType: 'blob',observe: 'response' }).subscribe(
-        (res: any) => {
+        async (res: any) => {
           let filename = this.genFile();
       //   const contentType = res.type;
       //   const urlCreator = window.URL || window.webkitURL;
@@ -376,7 +376,7 @@ export class StructuredTextComponent implements OnInit {
       if (contentDisposition && contentDisposition.indexOf('filename=') !== -1) {
         filename = contentDisposition.split('filename=')[1].trim().replace(/"/g, '');
       }
-      this.downloadFile(res.body, filename);
+      await this.validateAndDownloadZip(res.body, filename, 'Fairness report download returned an invalid archive.');
         }, error => { 
           console.log(error)
           const message = error.error.detail
@@ -905,13 +905,13 @@ export class StructuredTextComponent implements OnInit {
     if (batch.TenetId == 2.2) {
     const payload = {'Batch_id': id}
       this.https.post(this.FairnessWrapDownload, payload ,{ responseType: 'blob',observe: 'response' }).subscribe(
-        (res: any) => {
+        async (res: any) => {
           let filename = this.genFile();
       const contentDisposition = res.headers.get('Content-Disposition');
       if (contentDisposition && contentDisposition.indexOf('filename=') !== -1) {
         filename = contentDisposition.split('filename=')[1].trim().replace(/"/g, '');
       }
-      this.downloadFile(res.body, filename);
+      await this.validateAndDownloadZip(res.body, filename, 'Fairness report download returned an invalid archive.');
         }, error => {
           console.log(error)
           const message = error.error.detail
@@ -947,5 +947,45 @@ export class StructuredTextComponent implements OnInit {
     a.click();
     window.URL.revokeObjectURL(url);
     document.body.removeChild(a);
+  }
+
+  private async validateAndDownloadZip(data: Blob, filename: string, fallbackMessage: string) {
+    if (!data || !(await this.isZipBlob(data))) {
+      const message = await this.extractBlobErrorMessage(data, fallbackMessage);
+      this._snackBar.open(message, 'Close', {
+        duration: 4000,
+        horizontalPosition: 'center',
+        panelClass: ['le-u-bg-black'],
+      });
+      return;
+    }
+
+    this.downloadFile(data, filename);
+  }
+
+  private async isZipBlob(blobContent: Blob): Promise<boolean> {
+    if (!blobContent || blobContent.size < 4) {
+      return false;
+    }
+
+    const headerBytes = new Uint8Array(await blobContent.slice(0, 4).arrayBuffer());
+    return (
+      headerBytes[0] === 0x50 &&
+      headerBytes[1] === 0x4b &&
+      [0x03, 0x05, 0x07].includes(headerBytes[2])
+    );
+  }
+
+  private async extractBlobErrorMessage(blobContent: Blob | null | undefined, fallbackMessage: string): Promise<string> {
+    if (!blobContent) {
+      return fallbackMessage;
+    }
+
+    try {
+      const errorText = (await blobContent.text()).trim();
+      return errorText ? errorText : fallbackMessage;
+    } catch (_error) {
+      return fallbackMessage;
+    }
   }
 }

@@ -1,4 +1,4 @@
-FROM python:3.9.13-slim
+FROM python:3.10.14-slim
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -7,22 +7,12 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 WORKDIR /app
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        wkhtmltopdf \
-        fontconfig \
-        fonts-dejavu-core && \
-    rm -rf /var/lib/apt/lists/*
-
-# Copy requirements first for layer caching
 COPY requirements/requirements.txt requirements.txt
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
 COPY . .
 
-# Create non-root user
 RUN useradd --create-home --uid 1000 appuser && \
     chown -R appuser:appuser /app
 
@@ -30,4 +20,6 @@ USER appuser
 
 WORKDIR /app/src
 
-CMD ["python3", "main.py"]
+EXPOSE 8000
+
+CMD ["python3", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

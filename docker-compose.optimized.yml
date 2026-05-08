@@ -178,6 +178,7 @@ services:
       HOMEFILEPATHURL: http://localhost:30055
       DICOMFILEPATHURL: http://localhost:30055
       MASTERURL: http://localhost:30016/api/v1/rai/admin/ConfigApi
+      DICE_SERVICE_URL: http://localhost:8004
       ENABLESEARCH: "true"
       ENABLEINTERPRET: "true"
       AUTHORITY_API: http://localhost:30019/v1/rai/backend/pageauthoritynew
@@ -312,6 +313,28 @@ services:
       - ./responsible-ai-explain/responsible-ai-explain:/app
     ports:
       - "8002:8002"
+    networks:
+      - rai-network
+    restart: unless-stopped
+
+  dice-counterfactual:
+    container_name: rai-dice
+    profiles: ["explainability"]
+    build:
+      context: ./responsible-ai-dice/responsible-ai-dice
+      dockerfile: Dockerfile
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      DB_NAME: rai_repository
+      DB_TYPE: mongo
+      MONGO_PATH: mongodb://mongo:27017/
+      REPORT_URL: http://reporting-tool/v1/report/htmltopdfconversion
+    volumes:
+      - ./responsible-ai-dice/responsible-ai-dice:/app
+    ports:
+      - "8004:8000"
     networks:
       - rai-network
     restart: unless-stopped

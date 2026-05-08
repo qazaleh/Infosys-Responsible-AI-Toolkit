@@ -16,7 +16,7 @@ from fastapi import HTTPException, Response
 from rai_backend.dao.DatabaseConnection import DB
 from rai_backend.config.logger import CustomLogger
 from dotenv import load_dotenv
-from werkzeug.security import generate_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 from rai_backend.service.backend_service import UserInDB
 load_dotenv()
 log = CustomLogger()
@@ -172,7 +172,11 @@ class UserDb:
                 user_dict["activated"]=user["activated"]
                 user_dict["createdBy"]=user["createdBy"]
                 user_dict["createdDate"]=user["createdDate"]
-                user_dict["firstName"]=user["firstName"]
+                user_dict["firstName"]=user.get("firstName", user["login"])
+                user_dict["lastName"]=user.get("lastName", "")
+                user_dict["email"]=user.get("email", "")
+                user_dict["langKey"]=user.get("langKey", "en")
+                user_dict["imageUrl"]=user.get("imageUrl")
                 user_dict["lastModifiedBy"]=user["lastModifiedBy"]
                 user_dict["lastModifiedDate"]=user["lastModifiedDate"]
                 user_dict['authorities'] = user['authorities']
@@ -183,6 +187,43 @@ class UserDb:
             log.info("Inside Except")
             log.debug(e)
             raise HTTPException(status_code=401, detail="Unauthorized")
+
+    def update_account(loginName, account):
+        try:
+            allowed_fields = {"firstName", "lastName", "email", "langKey"}
+            new_values = {key: value for key, value in account.items() if key in allowed_fields}
+            new_values["lastModifiedBy"] = loginName
+            new_values["lastModifiedDate"] = datetime.datetime.now()
+            updated = UserDb.mycol.update_one({"login": loginName}, {"$set": new_values})
+            if updated.acknowledged:
+                return {"message": "Account updated successfully", "status_code": 200}
+            return {"message": "Account update failed", "status_code": 400}
+        except Exception as e:
+            log.error(e)
+            return {"message": "An error occurred", "status_code": 500}
+
+    def change_password(loginName, current_password, new_password):
+        try:
+            user = UserDb.mycol.find_one({"login": loginName}, {"_id": 0, "passwordHash": 1})
+            if user is None or not check_password_hash(user["passwordHash"], current_password):
+                return {"message": "Current password is incorrect", "status_code": 400}
+
+            updated = UserDb.mycol.update_one(
+                {"login": loginName},
+                {
+                    "$set": {
+                        "passwordHash": generate_password_hash(new_password, method='pbkdf2:sha256'),
+                        "lastModifiedBy": loginName,
+                        "lastModifiedDate": datetime.datetime.now(),
+                    }
+                },
+            )
+            if updated.acknowledged:
+                return {"message": "Password updated successfully", "status_code": 200}
+            return {"message": "Password update failed", "status_code": 400}
+        except Exception as e:
+            log.error(e)
+            return {"message": "An error occurred", "status_code": 500}
     def add_initial_data():
         auth = list(UserDb.myAuth.find({},{"_id":0}))
         if len(auth)==0:
@@ -291,4 +332,3 @@ class UserDb:
 
         
         
-

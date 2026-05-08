@@ -32,6 +32,8 @@ from rai_backend.dao.DatabaseConnection import DB
 from dotenv import load_dotenv
 from rai_backend.dao.TelemetryFlagDb import TelemetryFlag
 from werkzeug.security import generate_password_hash
+from jose import JWTError, jwt
+from rai_backend.service.backend_service import ALGORITHM, SECRET_KEY
 import json
 router = APIRouter()
 log=CustomLogger()
@@ -81,38 +83,48 @@ def send_telemetry_request_register(register_telemetry_request):
 
 
 
-def token_required(func):
-    @wraps(func)
-    def decorated(request: Request, *args, **kwargs):
-        print("request")
-        print(str(request))
-        authorization_header = request.headers.get("authorization")
-        if authorization_header:
-            if authorization_header.startswith("Bearer "):
-                token = authorization_header.split()[1]
-                if token == "null":
-                    raise HTTPException(status_code=401, detail="Unauthorized")
-                res = AuthService.accountService(globalUsername)
-                print('ressss::')
-                print(res)
-                if res is None:
-                    raise HTTPException(status_code=401, detail="Unauthorized")
-                return res
-            else:
-                raise HTTPException(status_code=401, detail="Unauthorized")
-        else:
+def get_authenticated_account(request: Request):
+    authorization_header = request.headers.get("authorization")
+    if authorization_header and authorization_header.startswith("Bearer "):
+        token = authorization_header.split()[1]
+        if token == "null":
             raise HTTPException(status_code=401, detail="Unauthorized")
-    return decorated
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            username = payload.get("sub")
+        except JWTError:
+            raise HTTPException(status_code=401, detail="Unauthorized")
+        if not username:
+            raise HTTPException(status_code=401, detail="Unauthorized")
+        res = AuthService.accountService(username)
+        if res is None:
+            raise HTTPException(status_code=401, detail="Unauthorized")
+        return res
+    raise HTTPException(status_code=401, detail="Unauthorized")
 
 
 
 @router.get('/account')
-@token_required
 def analyze(request: Request):
     print(request)
     log.info("Entered get account method")
-    # response = AuthService.accountService(globalUsername)
-    # return response
+    return get_authenticated_account(request)
+
+@router.put('/account')
+def update_account(payload:UpdateAccountRequest, request: Request):
+    account = get_authenticated_account(request)
+    response = UserDb.update_account(account.get("login"), payload.dict(exclude_none=True))
+    if response.get("status_code") != 200:
+        raise HTTPException(status_code=response.get("status_code", 500), detail=response.get("message"))
+    return UserDb.getUserByName(account.get("login"))
+
+@router.post('/account/change-password')
+def change_password(payload: ChangePasswordRequest, request: Request):
+    account = get_authenticated_account(request)
+    response = UserDb.change_password(account.get("login"), payload.currentPassword, payload.newPassword)
+    if response.get("status_code") != 200:
+        raise HTTPException(status_code=response.get("status_code", 500), detail=response.get("message"))
+    return {"message": response.get("message")}
 
 @router.post('/register')
 def analyze(payload:NewUserRequest):
@@ -398,7 +410,5 @@ def set_user_consent(payload: UserConsentCreate):
 def get_user_consent(userId: str):
     res = UserDb.get_user_consent(userId)
     return JSONResponse(content={"userConsentStatus": res})
-
-
 
 

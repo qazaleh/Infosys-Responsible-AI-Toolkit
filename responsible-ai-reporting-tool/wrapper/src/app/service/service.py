@@ -21,6 +21,7 @@ from io import BytesIO
 from app.config.logger import CustomLogger
 
 from app.service.utility import Utility as UT
+from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 import pdfkit
 
@@ -77,12 +78,17 @@ class InfosysRAI:
         # Check if payload is not None and it contains 'batchId'
         if payload['batchId'] is None:
             log.error("batchId is missing")
-            return {'status':'FAILURE', 'message':'BatchId is missing', 'BatchId':None}
+            raise HTTPException(status_code=400, detail='BatchId is missing')
         try:
             batch_id = payload['batchId']
             tenet_id = Batch.find_tenet_id(batch_id=batch_id)
             
             report_file_details = Report.find_one(batch_id=batch_id, tenet_id=tenet_id)
+            if report_file_details is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f'No generated report found for batchId {batch_id}.'
+                )
 
             if InfosysRAI.db_type == 'mongo':
                 container_name =  None
@@ -98,9 +104,14 @@ class InfosysRAI:
             
             return response
 
+        except HTTPException:
+            raise
         except Exception as e:
             log.error(e, exc_info=True)
-            return {'status': 'FAILURE', 'message': f'Error while downloading the report, due to {str(e)}', 'BatchId': payload['batchId']}
+            raise HTTPException(
+                status_code=500,
+                detail=f'Error while downloading the report, due to {str(e)}'
+            )
 
     def combinedReport(payload):
         
@@ -197,9 +208,14 @@ class InfosysRAI:
 
             log.info(str(f'report_id: {report_id}'))
             return {'status': 'SUCCESS', 'message': 'HTML to PDF conversion successful', 'ReportId': report_id} 
+        except HTTPException:
+            raise
         except Exception as exc:
             log.exception(str(exc))
-            return {'status': 'FAILURE', 'message': f'Error while converting html to pdf, due to {str(exc)}', 'BatchId': batch_id}
+            raise HTTPException(
+                status_code=500,
+                detail=f'Error while converting html to pdf, due to {str(exc)}'
+            )
 
 
 
@@ -207,7 +223,7 @@ class InfosysRAI:
         # Check if payload is None
         if payload['batchId'] is None:
             log.error("batchId is missing")
-            return {'status':'FAILURE', 'message': 'batchId is missing', 'BatchId':None}
+            raise HTTPException(status_code=400, detail='batchId is missing')
         try:
             batch_id = payload['batchId']
             tenet_id = Batch.find_tenet_id(batch_id=batch_id)
@@ -346,7 +362,11 @@ class InfosysRAI:
             Report.create(data)
             
             return {'status': 'SUCCESS', 'message': 'HTML to PDF conversion successful', 'ReportId': report_id}
-            
+        except HTTPException:
+            raise
         except Exception as e:
             log.error(e, exc_info=True)
-            return {'status': 'FAILURE', 'message': f'Error while converting html to pdf, due to {str(e)}', 'BatchId': payload['batchId']}
+            raise HTTPException(
+                status_code=500,
+                detail=f'Error while converting html to pdf, due to {str(e)}'
+            )
