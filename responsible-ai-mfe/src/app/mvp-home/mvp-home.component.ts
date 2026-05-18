@@ -6,6 +6,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 */
 import { Component } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { ActivatedRoute, ParamMap } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { urlList } from '../urlList';
 
@@ -129,11 +130,26 @@ interface DiceCounterfactualResult {
   };
 }
 
+interface DiceConstraintPayload {
+  immutable_features?: string[];
+  permitted_range?: Record<string, [number, number]>;
+}
+
 interface TenetRunStatus {
   name: string;
   state: 'success' | 'error' | 'running';
   message: string;
   batchId?: number | null;
+}
+
+interface ServiceStat {
+  label: string;
+  value: string;
+}
+
+interface ServiceHighlight {
+  title: string;
+  description: string;
 }
 
 @Component({
@@ -291,6 +307,8 @@ export class MvpHomeComponent {
   diceInputIndex = 0;
   diceDesiredClass = 'opposite';
   diceTotalCounterfactuals = 3;
+  diceImmutableFeaturesInput = '';
+  dicePermittedRangeInput = '';
 
   fairnessBiasType = 'PRETRAIN';
   fairnessMethodType = 'ALL';
@@ -324,8 +342,9 @@ export class MvpHomeComponent {
     Robustness: null,
   };
   selectedDownloadTenet = '';
+  routeSelectedTab: 'Explainability' | 'Fairness' | 'Robustness' | null = null;
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient, private route: ActivatedRoute) {}
 
   ngOnInit(): void {
     this.selectedModel = this.getSelectedClassifierModelAsset()?.modelFileName || '';
@@ -333,6 +352,9 @@ export class MvpHomeComponent {
     void this.loadFixedDatasetColumns();
     void this.refreshRobustnessAttackOptions();
     this.loadApiConfigFromAdmin();
+    this.route.queryParamMap.subscribe((queryParamMap) => {
+      this.applyRouteState(queryParamMap);
+    });
   }
 
   get canEvaluate(): boolean {
@@ -368,6 +390,156 @@ export class MvpHomeComponent {
 
   get isRobustnessTab(): boolean {
     return this.activeTab === 'Robustness';
+  }
+
+  get isServiceRoute(): boolean {
+    return this.routeSelectedTab !== null;
+  }
+
+  get serviceThemeClass(): string {
+    switch (this.activeTab) {
+      case 'Fairness':
+        return 'theme-fairness';
+      case 'Robustness':
+        return 'theme-robustness';
+      default:
+        return 'theme-explainability';
+    }
+  }
+
+  get serviceEyebrow(): string {
+    return this.isServiceRoute ? 'AI Model Service' : 'AI Model Toolkit';
+  }
+
+  get serviceTitle(): string {
+    if (this.isExplainabilityTab) {
+      return this.explainabilityMode === 'DICE'
+        ? 'Counterfactual Explainability'
+        : 'Explainability Workbench';
+    }
+    if (this.isFairnessTab) {
+      return 'Fairness Studio';
+    }
+    return 'Robustness Control Center';
+  }
+
+  get serviceDescription(): string {
+    if (this.isExplainabilityTab) {
+      return this.explainabilityMode === 'DICE'
+        ? 'Generate counterfactual paths for a specific row so teams can see what needs to change to flip the model decision.'
+        : 'Run local explanation workflows, preview feature importance, and package report-ready explainability outputs from one focused surface.';
+    }
+    if (this.isFairnessTab) {
+      return 'Audit dataset and prediction bias with a fairness-first workspace that keeps bias type, protected attributes, and report generation in one dedicated flow.';
+    }
+    return 'Stress test the linked classifier with supported attacks and launch a targeted robustness run without carrying the other AI model services on screen.';
+  }
+
+  get serviceBadge(): string {
+    if (this.isExplainabilityTab) {
+      return this.explainabilityMode === 'DICE'
+        ? 'Counterfactuals'
+        : 'Standard';
+    }
+    if (this.isFairnessTab) {
+      return this.fairnessBiasType === 'POSTTRAIN' ? 'Post-train Audit' : 'Pre-train Audit';
+    }
+    return `${this.selectedRobustnessAttacks.length || 1} Attack${this.selectedRobustnessAttacks.length === 1 ? '' : 's'} Selected`;
+  }
+
+  get serviceStats(): ServiceStat[] {
+    if (this.isExplainabilityTab) {
+      return [
+        { label: 'Dataset', value: this.fixedDatasetFileName },
+        { label: 'Classifier', value: this.uploadedTargetClassifier },
+        { label: 'Preview', value: this.showExplainPreview ? 'Enabled' : 'Report only' },
+      ];
+    }
+
+    if (this.isFairnessTab) {
+      return [
+        { label: 'Dataset', value: this.getSelectedFairnessDatasetOption()?.label || 'Preset dataset' },
+        { label: 'Bias Type', value: this.fairnessBiasType },
+        { label: 'Method', value: this.fairnessMethodType || 'ALL' },
+      ];
+    }
+
+    return [
+      { label: 'Dataset', value: this.fixedDatasetFileName },
+      { label: 'Classifier', value: this.uploadedTargetClassifier },
+      { label: 'Attacks', value: String(this.selectedRobustnessAttacks.length || 1) },
+    ];
+  }
+
+  get serviceHighlights(): ServiceHighlight[] {
+    if (this.isExplainabilityTab) {
+      return [
+        {
+          title: 'Explanation Modes',
+          description: 'Switch between standard explainability and the dedicated DiCE counterfactual flow without leaving the page.',
+        },
+        {
+          title: 'Fast Review',
+          description: 'Keep the run lightweight with report-only mode or enable an in-page preview when analysts need quick inspection.',
+        },
+        {
+          title: 'Traceable Output',
+          description: 'Generated batches, previews, and downloadable reports stay grouped under the same service run.',
+        },
+      ];
+    }
+
+    if (this.isFairnessTab) {
+      return [
+        {
+          title: 'Bias-centered Layout',
+          description: 'The page is narrowed to fairness controls only, so analysts can focus on protected attributes, labels, and mitigation context.',
+        },
+        {
+          title: 'Preset-driven Setup',
+          description: 'Fairness dataset presets seed the core fields, while still allowing manual overrides for each evaluation.',
+        },
+        {
+          title: 'Report Pipeline',
+          description: 'Batch generation and fairness report download remain attached to the same service surface after each run.',
+        },
+      ];
+    }
+
+    return [
+      {
+        title: 'Attack Selection',
+        description: 'Choose only the attacks relevant to the current classifier instead of running a broad generic robustness workflow.',
+      },
+      {
+        title: 'Compatibility Gate',
+        description: 'The service validates model support before executing the attack set, reducing failed long-running jobs.',
+      },
+      {
+        title: 'Security Reporting',
+        description: 'Successful runs feed directly into the toolkit report download flow for the selected robustness batch.',
+      },
+    ];
+  }
+
+  get serviceAsideTitle(): string {
+    if (this.isExplainabilityTab) {
+      return 'Explainability orchestration';
+    }
+    if (this.isFairnessTab) {
+      return 'Fairness-only workspace';
+    }
+    return 'Robustness run control';
+  }
+
+  get serviceAsideDescription(): string {
+    if (this.isExplainabilityTab) {
+      return 'This surface is tuned for classifier interpretation and keeps the linked dataset/model pair front and center.';
+    }
+    if (this.isFairnessTab) {
+      return 'Coming from the AI Model menu into Fairness now opens a dedicated fairness experience instead of the shared multi-service MVP layout.';
+    }
+    return 'The robustness workspace keeps attack planning, validation, and report generation inside a single service-driven screen.';
   }
 
   get availableDownloadTenets(): string[] {
@@ -474,6 +646,35 @@ export class MvpHomeComponent {
         (selectedAttack) => selectedAttack !== attackName
       );
     }
+  }
+
+  private applyRouteState(queryParamMap: ParamMap): void {
+    const nextTab = this.normalizeRouteTab(queryParamMap.get('tab'));
+    const nextExplainabilityMode = this.normalizeExplainabilityMode(queryParamMap.get('mode'));
+    this.routeSelectedTab = queryParamMap.get('tab') ? nextTab : null;
+
+    if (this.activeTab !== nextTab) {
+      this.setActiveTab(nextTab);
+    }
+
+    if (nextTab === 'Explainability' && this.explainabilityMode !== nextExplainabilityMode) {
+      this.onExplainabilityModeChange(nextExplainabilityMode);
+    }
+  }
+
+  private normalizeRouteTab(tabValue: string | null): 'Explainability' | 'Fairness' | 'Robustness' {
+    switch ((tabValue || '').toLowerCase()) {
+      case 'fairness':
+        return 'Fairness';
+      case 'robustness':
+        return 'Robustness';
+      default:
+        return 'Explainability';
+    }
+  }
+
+  private normalizeExplainabilityMode(modeValue: string | null): 'STANDARD' | 'DICE' {
+    return modeValue?.toLowerCase() === 'counterfactuals' ? 'DICE' : 'STANDARD';
   }
 
 
@@ -791,6 +992,7 @@ export class MvpHomeComponent {
     modelId: number,
     selectedDatasetOption: DatasetOption
   ): Promise<void> {
+    const diceConstraintPayload = this.buildDiceConstraintPayload();
     this.setTenetStatus('Explainability', 'running', 'Generating DiCE counterfactuals...');
     this.currentStepMessage = 'Generating DiCE batch...';
 
@@ -820,6 +1022,7 @@ export class MvpHomeComponent {
         inputIndex: this.diceInputIndex,
         desiredClass: this.diceDesiredClass,
         totalCounterfactuals: this.diceTotalCounterfactuals,
+        ...diceConstraintPayload,
       })
     );
     this.diceResult = (dicePreviewResponse?.result || null) as DiceCounterfactualResult | null;
@@ -834,6 +1037,7 @@ export class MvpHomeComponent {
         inputIndex: this.diceInputIndex,
         desiredClass: this.diceDesiredClass,
         totalCounterfactuals: this.diceTotalCounterfactuals,
+        ...diceConstraintPayload,
       })
     );
     const reportMessage =
@@ -2180,6 +2384,80 @@ export class MvpHomeComponent {
         ? `${normalizedText.slice(0, 237)}...`
         : normalizedText;
     }
+  }
+
+  private buildDiceConstraintPayload(): DiceConstraintPayload {
+    const immutableFeatures = this.parseDiceImmutableFeatures(this.diceImmutableFeaturesInput);
+    const permittedRange = this.parseDicePermittedRange(this.dicePermittedRangeInput);
+
+    const payload: DiceConstraintPayload = {};
+    if (immutableFeatures.length > 0) {
+      payload.immutable_features = immutableFeatures;
+    }
+    if (permittedRange) {
+      payload.permitted_range = permittedRange;
+    }
+    return payload;
+  }
+
+  private parseDiceImmutableFeatures(rawValue: string): string[] {
+    return Array.from(
+      new Set(
+        String(rawValue || '')
+          .split(/[,\n]/)
+          .map((featureName) => featureName.trim())
+          .filter((featureName) => featureName.length > 0)
+      )
+    );
+  }
+
+  private parseDicePermittedRange(
+    rawValue: string
+  ): Record<string, [number, number]> | undefined {
+    const normalizedValue = String(rawValue || '').trim();
+    if (!normalizedValue) {
+      return undefined;
+    }
+
+    let parsedValue: unknown;
+    try {
+      parsedValue = JSON.parse(normalizedValue);
+    } catch (_error) {
+      throw new Error(
+        'Permitted range must be valid JSON like {"income":[20000,100000],"hours_per_week":[20,60]}.'
+      );
+    }
+
+    if (!parsedValue || Array.isArray(parsedValue) || typeof parsedValue !== 'object') {
+      throw new Error(
+        'Permitted range must be a JSON object that maps feature names to [min, max] arrays.'
+      );
+    }
+
+    const normalizedRange: Record<string, [number, number]> = {};
+    for (const [featureName, rangeValue] of Object.entries(parsedValue)) {
+      if (!Array.isArray(rangeValue) || rangeValue.length !== 2) {
+        throw new Error(
+          `Permitted range for "${featureName}" must be a two-item array like [min, max].`
+        );
+      }
+
+      const [minValue, maxValue] = rangeValue;
+      if (
+        typeof minValue !== 'number' ||
+        Number.isNaN(minValue) ||
+        typeof maxValue !== 'number' ||
+        Number.isNaN(maxValue)
+      ) {
+        throw new Error(
+          `Permitted range for "${featureName}" must contain numeric min/max values.`
+        );
+      }
+
+      normalizedRange[featureName] = [minValue, maxValue];
+    }
+
+    return normalizedRange;
   }
 
   private resetEvaluationState(): void {

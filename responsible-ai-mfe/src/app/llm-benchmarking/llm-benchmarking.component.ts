@@ -4,7 +4,8 @@ Copyright 2024 - 2025 Infosys Ltd.
 The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."
 */
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
+import { Router } from '@angular/router';
 import { RoleManagerService } from '../services/role-maganer.service';
 
 @Component({
@@ -12,6 +13,23 @@ import { RoleManagerService } from '../services/role-maganer.service';
   templateUrl: './llm-benchmarking.component.html',
   styleUrls: ['./llm-benchmarking.component.css']
 })
-export class LlmBenchmarkingComponent {
-  constructor(public roleService : RoleManagerService){}
+export class LlmBenchmarkingComponent implements OnInit {
+  readonly evaluationThemes = [
+    'Robustness',
+    'Fairness',
+    'Truthfulness',
+    'Privacy',
+    'Ethics',
+  ];
+
+  constructor(
+    public roleService: RoleManagerService,
+    private router: Router
+  ) {}
+
+  ngOnInit(): void {
+    if (this.router.url.includes('/llm-evaluations')) {
+      void this.router.navigate(['/responsible-ui/llm-office'], { replaceUrl: true });
+    }
+  }
 }

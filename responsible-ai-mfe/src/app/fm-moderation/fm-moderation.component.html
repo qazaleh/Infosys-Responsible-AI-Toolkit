@@ -350,7 +350,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
                                 </div>
                             </mat-expansion-panel>
 
-                            <mat-expansion-panel [disabled]="roles === 'ROLE_ML'" (opened)="panelOpenState = true" (closed)="panelOpenState = false">
+                            <mat-expansion-panel [disabled]="roles === 'ROLE_ML'" [expanded]="isExplainabilityPanelOpen" (opened)="panelOpenState = true; isExplainabilityPanelOpen = true" (closed)="panelOpenState = false; isExplainabilityPanelOpen = false">
                                 <mat-expansion-panel-header>
                                     <mat-panel-title>
                                         <mat-checkbox class="custom-frame mt-n2" (click)="$event.stopPropagation()" (change)="viewoptions()" color="primary" name="Explainability" [(ngModel)]="selectedOptions['Explainability']" [disabled]="roles === 'ROLE_ML' || disabledOptions.includes('Explainability')">

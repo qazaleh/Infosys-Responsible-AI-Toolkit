@@ -6,27 +6,22 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 */
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule, Routes } from '@angular/router';
-import { LlmBenchmarkingComponent } from './llm-benchmarking.component';
-import { SharedModule } from '../shared/shared.module';
 import { NgxSkeletonLoaderModule } from 'ngx-skeleton-loader';
-import { LeaderboardModule } from './leaderboard/leaderboard.module';
 
-const routes: Routes = [
-  { path: '', component: LlmBenchmarkingComponent }
-];
+import { SharedModule } from '../../shared/shared.module';
+import { LeaderboardComponent } from './leaderboard.component';
 
 @NgModule({
   declarations: [
-    LlmBenchmarkingComponent
+    LeaderboardComponent
   ],
   imports: [
     CommonModule,
     SharedModule,
-    LeaderboardModule,
-    NgxSkeletonLoaderModule,
-    RouterModule.forChild(routes)
+    NgxSkeletonLoaderModule
   ],
-  exports: []
+  exports: [
+    LeaderboardComponent
+  ]
 })
-export class LlmBenchmarkingModule { }
+export class LeaderboardModule { }

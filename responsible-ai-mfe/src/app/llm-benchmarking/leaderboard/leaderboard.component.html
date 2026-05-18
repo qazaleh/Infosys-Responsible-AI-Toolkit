@@ -22,7 +22,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     <div *ngIf="!isLoadingTable">
         <div class="d-flex justify-content-end my-3 pe-5 me-5">
             <div style="background-color: #8626C3; width: 18px; height: 8px;" class="mt-2"></div>
-            <label class="ms-2" style="font-size: 14px;">Infosys Model</label>
+            <label class="ms-2" style="font-size: 14px;">Highlighted Model</label>
         </div>
         <table class="styled-table" *ngIf="activeTable=='Model Robustness'">
             <tr>
@@ -43,7 +43,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
                 <th class="header">Avg</th>
             </tr>
             <tr *ngFor="let item of dataSourceRobustness">
-                <td [ngStyle]="{'color': item?.inhouse_model ? '#8626C3' : '#061838'}">{{ item.modelName}}</td>
+                <td [ngStyle]="{'color': item?.inhouse_model ? '#8626C3' : '#061838'}">{{ formatModelName(item.modelName) }}</td>
                 <td class="center-align">{{ item.SST_2}}</td>
                 <td class="center-align">{{ item.CoLA}}</td>
                 <td class="center-align">{{ item.QQP}}</td>
@@ -72,7 +72,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
                 <th class="header">Semantic</th>
             </tr>
             <tr *ngFor="let item of dataSourceAttackScore">
-                <td [ngStyle]="{'color': item?.inhouse_model ? '#8626C3' : '#061838'}">{{ item.modelName}}</td>
+                <td [ngStyle]="{'color': item?.inhouse_model ? '#8626C3' : '#061838'}">{{ formatModelName(item.modelName) }}</td>
                 <td class="center-align">{{ item.TextBugger}}</td>
                 <td class="center-align">{{ item.DeepWordBug}}</td>
                 <td class="center-align">{{ item.TextFoller}}</td>
@@ -155,7 +155,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
             </tr>
             <tr *ngFor="let item of fairness">
 
-                <td [ngStyle]="{'color': item['inhouse_model'] ? '#8626C3' : '#061838'}">{{ item['model_name']}}</td>
+                <td [ngStyle]="{'color': item['inhouse_model'] ? '#8626C3' : '#061838'}">{{ formatModelName(item['model_name']) }}</td>
                 <td [ngClass]="{'highlighted-column': currentSortColumn === 'stereotype_recognition'}" style="text-align: center; vertical-align: middle;">{{ item['stereotype_recognition']}}</td>
                 <td [ngClass]="{'highlighted-column': currentSortColumn === 'overall_agreement_rate'}" style="text-align: center; vertical-align: middle;">{{ item['overall_agreement_rate']}}</td>
                 <td [ngClass]="{'highlighted-column': currentSortColumn === 'stereotype_query_test'}" style="text-align: center; vertical-align: middle;">{{ item['stereotype_query_test']}}</td>
@@ -194,7 +194,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
                 </th>
             </tr>
             <tr *ngFor="let item of dataSourceTruthfullness">
-                <td [ngStyle]="{'color': item?.inhouse_model ? '#8626C3' : '#061838'}">{{ item.model_name}}</td>
+                <td [ngStyle]="{'color': item?.inhouse_model ? '#8626C3' : '#061838'}">{{ formatModelName(item.model_name) }}</td>
                 <td class="center-align">{{ item.internal}}</td>
                 <td class="center-align">{{ item.external}}</td>
                 <td class="center-align">{{ item.hallucination}}</td>
@@ -232,7 +232,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
             </tr>
             <tr *ngFor="let item of dataSourceSafety">
-                <td [ngStyle]="{'color': item?.inhouse_model ? '#8626C3' : '#061838'}">{{ item.model_name}}</td>
+                <td [ngStyle]="{'color': item?.inhouse_model ? '#8626C3' : '#061838'}">{{ formatModelName(item.model_name) }}</td>
                 <td class="center-align">{{ item.jailbreak}}</td>
                 <td class="center-align">{{ item.toxicity}}</td>
                 <td class="center-align">{{ item.misuse}}</td>
@@ -270,7 +270,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
                 </th>
             </tr>
             <tr *ngFor="let item of dataSourcePrivacy">
-                <td [ngStyle]="{'color': item?.inhouse_model ? '#8626C3' : '#061838'}">{{ item.model_name}}</td>
+                <td [ngStyle]="{'color': item?.inhouse_model ? '#8626C3' : '#061838'}">{{ formatModelName(item.model_name) }}</td>
                 <td class="center-align">{{ item.privacy_awareness_normal}}</td>
                 <td class="center-align">{{ item.privacy_awareness_aug}}</td>
                 <td class="center-align">{{ item.privacy_leakage_rta }}</td>
@@ -307,7 +307,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
                 </th>
             </tr>
             <tr *ngFor="let item of dataSourceMachineEthics">
-                <td [ngStyle]="{'color': item?.inhouse_model ? '#8626C3' : '#061838'}">{{ item.model_name}}</td>
+                <td [ngStyle]="{'color': item?.inhouse_model ? '#8626C3' : '#061838'}">{{ formatModelName(item.model_name) }}</td>
                 <td class="center-align">{{ item.social_chemistry_101_acc }}</td>
                 <td class="center-align">{{ item.ehitcs_acc }}</td>
                 <td class="center-align">{{ item.moralchoice_acc }}</td>

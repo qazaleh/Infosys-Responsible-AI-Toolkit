@@ -19,12 +19,14 @@ Navbar
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: 58px;
+    gap: 1rem;
+    min-height: 72px;
+    padding: 0 1.25rem;
     top: -1px;
     background-color: #305669 !important;
     a.nav-link {
         font-weight: 400;
-        margin-top: 15px;
+        margin-top: 0;
     }
 }
 
@@ -44,8 +46,17 @@ Logo styles
 .logo {
     display: flex;
     align-items: center;
-    min-height: 58px;
+    gap: 0.35rem;
+    min-height: 72px;
     flex-shrink: 0;
+}
+
+.brand-button {
+    border: 0;
+    background: transparent;
+    padding: 0 1rem 0 0;
+    color: #fff;
+    cursor: pointer;
 }
 
 .navbar-logo {
@@ -54,14 +65,76 @@ Logo styles
     width: auto;
 }
 
+.logo-suffix {
+    color: #ffffff;
+    font-family: 'Segoe UI', sans-serif;
+    font-size: 1.2rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+}
+
 .navbar-collapse {
-    justify-content: flex-end;
+    justify-content: flex-start;
     flex-grow: 1;
 }
 
+.navbar-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: nowrap;
+    width: 100%;
+    gap: 1rem;
+    min-width: 0;
+}
+
+.primary-nav,
 .account-nav {
+    display: flex;
+    align-items: center;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.primary-nav {
+    flex: 1 1 auto;
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.primary-nav-item,
+.account-nav .nav-item {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+}
+
+.account-nav {
+    flex: 0 0 auto;
     margin-left: auto;
-    margin-right: 24px;
+    margin-right: 0;
+}
+
+.primary-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0 1.15rem !important;
+    border-radius: 999px;
+    font-family: 'Segoe UI', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 600 !important;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.primary-link:hover,
+.primary-link.active-nav {
+    background-color: rgba(255, 255, 255, 0.12);
 }
 
 // .navbar-title {
@@ -103,10 +176,9 @@ Logo styles
     color: #ffffff !important;
 }
 
-.dropdown-menu.show {
+.account-menu.show {
     text-align: left;
     z-index: 1000;
-    width:215px;
     padding: 0.5rem;
     color: black;
     background-color: white;
@@ -114,6 +186,10 @@ Logo styles
     font-size: medium;
     list-style: none;
     position: absolute;
+}
+
+.account-menu.show {
+    width: 215px;
     inset: 0px 0px auto auto;
     margin-left: -40px !important;
     transform: translate(0px, 29px);
@@ -176,11 +252,54 @@ Logo styles
     align-items: center;
     font-weight: bold;
     color: #8626C3;
-    margin-top: -7px;
 }
 
 .avatar span {
     color: #fff;
     font-weight: bold;
     font-size: 20px;
+}
+
+@media (max-width: 767.98px) {
+    .navbar {
+        gap: 0.5rem;
+        padding: 0 0.75rem;
+    }
+
+    .navbar-content {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.5rem;
+        padding-bottom: 0.75rem;
+    }
+
+    .primary-nav,
+    .account-nav {
+        align-items: stretch;
+        flex-direction: column;
+        width: 100%;
+        margin-right: 0;
+    }
+
+    .primary-nav {
+        gap: 0;
+    }
+
+    .primary-link {
+        min-height: 44px;
+        justify-content: flex-start;
+        padding: 0.25rem 0 !important;
+        border-radius: 0;
+    }
+
+    .account-nav {
+        margin-left: 0;
+    }
+
+    .account-menu.show {
+        position: static !important;
+        width: 100%;
+        margin-left: 0 !important;
+        transform: none !important;
+    }
 }

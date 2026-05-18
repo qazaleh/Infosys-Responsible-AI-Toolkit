@@ -2,13 +2,15 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 
 ScalarValue = Union[str, int, float, bool]
 
 
 class CounterfactualRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     modelId: Optional[float] = Field(default=None, example=11.01)
     datasetId: Optional[float] = Field(default=None, example=12.02)
     inputRow: Optional[Dict[str, Any]] = Field(default=None, example={'age': 42, 'income': 90000})
@@ -20,6 +22,21 @@ class CounterfactualRequest(BaseModel):
     continuousFeatures: Optional[List[str]] = Field(default=None, example=['age', 'income'])
     categoricalFeatures: Optional[List[str]] = Field(default=None, example=['gender'])
     allowFeaturesToVary: Optional[List[str]] = Field(default=None, example=['income'])
+    immutableFeatures: Optional[List[str]] = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            'immutableFeatures',
+            'immutable_features',
+            'featuresToIgnore',
+            'features_to_ignore',
+        ),
+        example=['age', 'gender', 'race'],
+    )
+    permittedRange: Optional[Dict[str, List[Union[int, float]]]] = Field(
+        default=None,
+        validation_alias=AliasChoices('permittedRange', 'permitted_range'),
+        example={'income': [20000, 100000], 'hours_per_week': [20, 60]},
+    )
     modelPath: Optional[str] = Field(default=None, example='/tmp/model.joblib')
     datasetRecords: Optional[List[Dict[str, Any]]] = Field(default=None)
     modelName: Optional[str] = Field(default=None, example='Loan Approval Model')

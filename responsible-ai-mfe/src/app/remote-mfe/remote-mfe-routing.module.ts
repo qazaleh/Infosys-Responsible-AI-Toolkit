@@ -17,6 +17,15 @@ export const remoteRoutes: Route[] = [
     pathMatch: 'full',
     component: MvpHomeComponent
   },
+  {
+    path: 'llm-evaluations',
+    redirectTo: 'llm-office',
+    pathMatch: 'full'
+  },
+  {
+    path: 'llm-office',
+    loadChildren: () => import('../llm-benchmarking/llm-benchmarking.module').then(m => m.LlmBenchmarkingModule)
+  },
   { path: '', component: HomeComponent,
     children: [
       { path: 'workbench', 

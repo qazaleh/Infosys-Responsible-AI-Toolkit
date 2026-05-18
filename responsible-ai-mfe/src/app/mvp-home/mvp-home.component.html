@@ -4,15 +4,27 @@ Copyright 2024 - 2025 Infosys Ltd.
 The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."
 -->
-<div class="mvp-home-page">
+<div class="mvp-home-page" [ngClass]="serviceThemeClass">
   <section class="mvp-home-card">
-    <!-- <div class="brand-header">
-      <div class="brand-lockup">
-        <img class="brand-logo" src="assets/logo/logo.png" alt="Trust AI logo" />
+    <section class="service-hero">
+      <div class="service-copy">
+        <p class="service-eyebrow">{{ serviceEyebrow }}</p>
+        <div class="service-heading-row">
+          <h1>{{ serviceTitle }}</h1>
+          <span class="service-badge">{{ serviceBadge }}</span>
+        </div>
+        <p class="service-description">{{ serviceDescription }}</p>
       </div>
-    </div> -->
 
-    <div class="evaluation-list tab-list" role="tablist" aria-label="Evaluation tabs">
+      <div class="service-stat-grid">
+        <article class="service-stat-card" *ngFor="let stat of serviceStats">
+          <span class="service-stat-label">{{ stat.label }}</span>
+          <strong class="service-stat-value">{{ stat.value }}</strong>
+        </article>
+      </div>
+    </section>
+
+    <div class="evaluation-list tab-list" role="tablist" aria-label="Evaluation tabs" *ngIf="!isServiceRoute">
       <button
         type="button"
         class="evaluation-item tab-button"
@@ -25,238 +37,277 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       </button>
     </div>
 
-    <section class="setup-panel" *ngIf="isExplainabilityTab">
-      <h3>Explainability Setup</h3>
-      <p class="section-label">Using dataset: <strong>banking_loan_training.csv</strong></p>
-      <div class="evaluation-list mode-list" aria-label="Explainability modes">
-        <button
-          type="button"
-          class="evaluation-item tab-button"
-          [class.active]="explainabilityMode === 'STANDARD'"
-          (click)="onExplainabilityModeChange('STANDARD')"
-        >
-          <span>Standard Explainability</span>
-        </button>
-        <button
-          type="button"
-          class="evaluation-item tab-button"
-          [class.active]="explainabilityMode === 'DICE'"
-          (click)="onExplainabilityModeChange('DICE')"
-        >
-          <span>Counterfactual with DiCE</span>
-        </button>
-      </div>
-      <div class="form-grid compact">
-        <label>
-          <span>Target Classifier</span>
-          <select
-            class="compact-input"
-            [(ngModel)]="uploadedTargetClassifier"
-            (ngModelChange)="onUploadedMetaChange()"
-          >
-            <optgroup
-              *ngFor="let classifierGroup of classifierOptionGroups"
-              [label]="classifierGroup.label"
-            >
-              <option
-                *ngFor="let classifierOption of classifierGroup.options"
-                [value]="classifierOption.value"
+    <div class="evaluation-list mode-list service-mode-strip" aria-label="Explainability modes" *ngIf="isExplainabilityTab">
+      <button
+        type="button"
+        class="evaluation-item tab-button"
+        [class.active]="explainabilityMode === 'STANDARD'"
+        (click)="onExplainabilityModeChange('STANDARD')"
+      >
+        <span>Standard Explainability</span>
+      </button>
+      <button
+        type="button"
+        class="evaluation-item tab-button"
+        [class.active]="explainabilityMode === 'DICE'"
+        (click)="onExplainabilityModeChange('DICE')"
+      >
+        <span>Counterfactual with DiCE</span>
+      </button>
+    </div>
+
+    <section class="service-layout">
+      <div class="service-main-column">
+        <section class="setup-panel" *ngIf="isExplainabilityTab">
+          <h3>Explainability Setup</h3>
+          <p class="section-label">Using dataset: <strong>banking_loan_training.csv</strong></p>
+          <div class="form-grid compact">
+            <label>
+              <span>Target Classifier</span>
+              <select
+                class="compact-input"
+                [(ngModel)]="uploadedTargetClassifier"
+                (ngModelChange)="onUploadedMetaChange()"
               >
-                {{ classifierOption.value }}
-              </option>
-            </optgroup>
-          </select>
-        </label>
-      </div>
+                <optgroup
+                  *ngFor="let classifierGroup of classifierOptionGroups"
+                  [label]="classifierGroup.label"
+                >
+                  <option
+                    *ngFor="let classifierOption of classifierGroup.options"
+                    [value]="classifierOption.value"
+                  >
+                    {{ classifierOption.value }}
+                  </option>
+                </optgroup>
+              </select>
+            </label>
+          </div>
 
-      <ng-container *ngIf="explainabilityMode === 'STANDARD'; else diceSetupBlock">
-      <label class="inline-toggle">
-        <input type="checkbox" [(ngModel)]="showExplainPreview" />
-        <span>Show in-page explanation preview</span>
-      </label>
-      <div *ngIf="showExplainPreview">
-        <label for="explain-sample-limit">LIME sample limit</label>
-        <input
-          id="explain-sample-limit"
-          class="compact-input"
-          type="number"
-          min="1"
-          max="25"
-          [(ngModel)]="explainSampleLimit"
-        />
-      </div>
-      <p class="hint-line">Default runs report only (faster and more stable).</p>
-      </ng-container>
-
-      <ng-template #diceSetupBlock>
-        <div class="form-grid compact">
-          <label>
-            <span>Selected Row Index</span>
-            <input class="compact-input" type="number" min="0" [(ngModel)]="diceInputIndex" />
+          <ng-container *ngIf="explainabilityMode === 'STANDARD'; else diceSetupBlock">
+          <label class="inline-toggle">
+            <input type="checkbox" [(ngModel)]="showExplainPreview" />
+            <span>Show in-page explanation preview</span>
           </label>
-          <label>
-            <span>Desired Class</span>
+          <div *ngIf="showExplainPreview">
+            <label for="explain-sample-limit">LIME sample limit</label>
             <input
-              class="compact-input"
-              type="text"
-              [(ngModel)]="diceDesiredClass"
-              placeholder="Use opposite, 0, 1, or a class label"
-            />
-          </label>
-          <label>
-            <span>Counterfactual Count</span>
-            <input
+              id="explain-sample-limit"
               class="compact-input"
               type="number"
               min="1"
-              max="10"
-              [(ngModel)]="diceTotalCounterfactuals"
+              max="25"
+              [(ngModel)]="explainSampleLimit"
             />
-          </label>
-        </div>
-        <p class="hint-line">
-          DiCE runs in its own isolated service, so SHAP/LIME/global explainability stays untouched.
-        </p>
-      </ng-template>
-    </section>
+          </div>
+          <p class="hint-line">Default runs report only so this service stays faster and more stable.</p>
+          </ng-container>
 
-    <section class="setup-panel" *ngIf="isFairnessTab">
-      <h3>Fairness Setup</h3>
-      <div class="form-grid compact">
-        <label>
-          <span>Dataset</span>
-          <select class="compact-input" [(ngModel)]="selectedFairnessDatasetKey" (ngModelChange)="onFairnessDatasetChange()">
-            <option *ngFor="let fairnessDatasetOption of fairnessDatasetOptions" [value]="fairnessDatasetOption.key">
-              {{ fairnessDatasetOption.label }}
-            </option>
-          </select>
-        </label>
-        <label>
-          <span>Bias Type</span>
-          <select [(ngModel)]="fairnessBiasType" (ngModelChange)="onFairnessBiasTypeChange()" class="compact-input">
-            <option value="PRETRAIN">PRETRAIN</option>
-            <option value="POSTTRAIN">POSTTRAIN</option>
-          </select>
-        </label>
-        <label>
-          <span>Method Type</span>
-          <select [(ngModel)]="fairnessMethodType" class="compact-input">
-            <option *ngFor="let methodOption of fairnessMethodOptions" [value]="methodOption.value">
-              {{ methodOption.label }}
-            </option>
-          </select>
-        </label>
-        <label>
-          <span>Label</span>
-          <input class="compact-input" type="text" [(ngModel)]="fairnessLabel" />
-        </label>
-        <label>
-          <span>Favorable Outcome</span>
-          <input class="compact-input" type="text" [(ngModel)]="fairnessFavorableOutcome" />
-        </label>
-        <label class="full-width">
-          <span>Protected Attributes (comma separated)</span>
-          <input
-            class="compact-input"
-            type="text"
-            [(ngModel)]="fairnessProtectedAttributesInput"
-            placeholder="Example: gender"
-          />
-        </label>
-        <label class="full-width" *ngIf="fairnessBiasType === 'POSTTRAIN'">
-          <span>Prediction Label</span>
-          <input
-            class="compact-input"
-            type="text"
-            [(ngModel)]="fairnessPredLabel"
-            placeholder="Example: labels_pred"
-          />
-        </label>
-      </div>
+          <ng-template #diceSetupBlock>
+            <div class="form-grid compact">
+              <label>
+                <span>Selected Row Index</span>
+                <input class="compact-input" type="number" min="0" [(ngModel)]="diceInputIndex" />
+              </label>
+              <label>
+                <span>Desired Class</span>
+                <input
+                  class="compact-input"
+                  type="text"
+                  [(ngModel)]="diceDesiredClass"
+                  placeholder="Use opposite, 0, 1, or a class label"
+                />
+              </label>
+              <label>
+                <span>Counterfactual Count</span>
+                <input
+                  class="compact-input"
+                  type="number"
+                  min="1"
+                  max="10"
+                  [(ngModel)]="diceTotalCounterfactuals"
+                />
+              </label>
+              <label class="full-width">
+                <span>Immutable Features</span>
+                <input
+                  class="compact-input"
+                  type="text"
+                  [(ngModel)]="diceImmutableFeaturesInput"
+                  placeholder="age, gender, race"
+                />
+              </label>
+              <label class="full-width">
+                <span>Permitted Range</span>
+                <textarea
+                  class="compact-input compact-textarea"
+                  rows="4"
+                  [(ngModel)]="dicePermittedRangeInput"
+                  placeholder='{"income":[20000,100000],"hours_per_week":[20,60]}'
+                ></textarea>
+              </label>
+            </div>
+            <p class="hint-line">
+              Immutable features are sent as <code>immutable_features</code>. Permitted ranges must be
+              valid JSON and use dataset feature names like {{ datasetColumns.join(', ') || 'the loaded columns' }}.
+            </p>
+            <p class="hint-line">
+              DiCE runs in its own isolated service, so SHAP/LIME/global explainability stays untouched.
+            </p>
+          </ng-template>
+        </section>
 
-      <details class="advanced-panel">
-        <summary>Advanced fairness options</summary>
-        <div class="form-grid">
-        <label>
-          <span>Task Type</span>
-          <select [(ngModel)]="fairnessTaskType" class="compact-input">
-            <option value="CLASSIFICATION">CLASSIFICATION</option>
-          </select>
-        </label>
-        <label class="full-width">
-          <span>Privileged Groups (group1;group2 format)</span>
-          <input
-            class="compact-input"
-            type="text"
-            [(ngModel)]="fairnessPrivilegedGroupsInput"
-            placeholder="Example: M;Cash loans (comma separated for multiple attributes)"
-          />
-        </label>
-        </div>
-      </details>
-      <p class="hint-line">Dataset presets fill these fields automatically. You can still adjust them before evaluation.</p>
-    </section>
+        <section class="setup-panel" *ngIf="isFairnessTab">
+          <h3>Fairness Setup</h3>
+          <div class="form-grid compact">
+            <label>
+              <span>Dataset</span>
+              <select class="compact-input" [(ngModel)]="selectedFairnessDatasetKey" (ngModelChange)="onFairnessDatasetChange()">
+                <option *ngFor="let fairnessDatasetOption of fairnessDatasetOptions" [value]="fairnessDatasetOption.key">
+                  {{ fairnessDatasetOption.label }}
+                </option>
+              </select>
+            </label>
+            <label>
+              <span>Bias Type</span>
+              <select [(ngModel)]="fairnessBiasType" (ngModelChange)="onFairnessBiasTypeChange()" class="compact-input">
+                <option value="PRETRAIN">PRETRAIN</option>
+                <option value="POSTTRAIN">POSTTRAIN</option>
+              </select>
+            </label>
+            <label>
+              <span>Method Type</span>
+              <select [(ngModel)]="fairnessMethodType" class="compact-input">
+                <option *ngFor="let methodOption of fairnessMethodOptions" [value]="methodOption.value">
+                  {{ methodOption.label }}
+                </option>
+              </select>
+            </label>
+            <label>
+              <span>Label</span>
+              <input class="compact-input" type="text" [(ngModel)]="fairnessLabel" />
+            </label>
+            <label>
+              <span>Favorable Outcome</span>
+              <input class="compact-input" type="text" [(ngModel)]="fairnessFavorableOutcome" />
+            </label>
+            <label class="full-width">
+              <span>Protected Attributes (comma separated)</span>
+              <input
+                class="compact-input"
+                type="text"
+                [(ngModel)]="fairnessProtectedAttributesInput"
+                placeholder="Example: gender"
+              />
+            </label>
+            <label class="full-width" *ngIf="fairnessBiasType === 'POSTTRAIN'">
+              <span>Prediction Label</span>
+              <input
+                class="compact-input"
+                type="text"
+                [(ngModel)]="fairnessPredLabel"
+                placeholder="Example: labels_pred"
+              />
+            </label>
+          </div>
 
-    <section class="setup-panel" *ngIf="isRobustnessTab">
-      <h3>Robustness Setup</h3>
-      <p class="section-label">Using dataset: <strong>banking_loan_training.csv</strong></p>
-      <div class="form-grid compact">
-        <label>
-          <span>Target Classifier</span>
-          <select
-            class="compact-input"
-            [(ngModel)]="uploadedTargetClassifier"
-            (ngModelChange)="onUploadedMetaChange()"
-          >
-            <optgroup
-              *ngFor="let classifierGroup of classifierOptionGroups"
-              [label]="classifierGroup.label"
-            >
-              <option
-                *ngFor="let classifierOption of classifierGroup.options"
-                [value]="classifierOption.value"
+          <details class="advanced-panel">
+            <summary>Advanced fairness options</summary>
+            <div class="form-grid">
+            <label>
+              <span>Task Type</span>
+              <select [(ngModel)]="fairnessTaskType" class="compact-input">
+                <option value="CLASSIFICATION">CLASSIFICATION</option>
+              </select>
+            </label>
+            <label class="full-width">
+              <span>Privileged Groups (group1;group2 format)</span>
+              <input
+                class="compact-input"
+                type="text"
+                [(ngModel)]="fairnessPrivilegedGroupsInput"
+                placeholder="Example: M;Cash loans (comma separated for multiple attributes)"
+              />
+            </label>
+            </div>
+          </details>
+          <p class="hint-line">Dataset presets fill these fields automatically. You can still adjust them before evaluation.</p>
+        </section>
+
+        <section class="setup-panel" *ngIf="isRobustnessTab">
+          <h3>Robustness Setup</h3>
+          <p class="section-label">Using dataset: <strong>banking_loan_training.csv</strong></p>
+          <div class="form-grid compact">
+            <label>
+              <span>Target Classifier</span>
+              <select
+                class="compact-input"
+                [(ngModel)]="uploadedTargetClassifier"
+                (ngModelChange)="onUploadedMetaChange()"
               >
-                {{ classifierOption.value }}
-              </option>
-            </optgroup>
-          </select>
-        </label>
+                <optgroup
+                  *ngFor="let classifierGroup of classifierOptionGroups"
+                  [label]="classifierGroup.label"
+                >
+                  <option
+                    *ngFor="let classifierOption of classifierGroup.options"
+                    [value]="classifierOption.value"
+                  >
+                    {{ classifierOption.value }}
+                  </option>
+                </optgroup>
+              </select>
+            </label>
+          </div>
+          <div class="attack-list">
+            <label class="attack-item" *ngFor="let attackName of robustnessAttackOptions">
+              <input
+                type="checkbox"
+                [checked]="selectedRobustnessAttacks.includes(attackName)"
+                (change)="onRobustnessAttackToggle(attackName, $any($event.target).checked)"
+              />
+              <span>{{ attackName }}</span>
+            </label>
+          </div>
+          <p class="hint-line">Select at least one attack. If the security service returns a filtered list, only supported attacks remain available.</p>
+        </section>
+
+        <p class="linked-model" *ngIf="(isExplainabilityTab || isRobustnessTab) && selectedModel">
+          Linked model: <strong>{{ selectedModel }}</strong>
+        </p>
+
+        <button
+          *ngIf="shouldShowEvaluateButton"
+          type="button"
+          class="evaluate-button"
+          [disabled]="!canEvaluate"
+          (click)="onEvaluateModel()"
+        >
+          {{
+            evaluationInProgress
+              ? 'Running Evaluation...'
+              : isExplainabilityTab
+                ? 'Evaluate Explainability'
+                : isRobustnessTab
+                  ? 'Evaluate Robustness'
+                  : 'Evaluate Fairness'
+          }}
+        </button>
       </div>
-      <div class="attack-list">
-        <label class="attack-item" *ngFor="let attackName of robustnessAttackOptions">
-          <input
-            type="checkbox"
-            [checked]="selectedRobustnessAttacks.includes(attackName)"
-            (change)="onRobustnessAttackToggle(attackName, $any($event.target).checked)"
-          />
-          <span>{{ attackName }}</span>
-        </label>
-      </div>
-      <p class="hint-line">Select at least one attack. If the security service returns a filtered list, only supported attacks remain available.</p>
+
+      <aside class="service-side-panel">
+        <p class="service-side-eyebrow">Service Focus</p>
+        <h2>{{ serviceAsideTitle }}</h2>
+        <p class="service-side-copy">{{ serviceAsideDescription }}</p>
+
+        <div class="service-highlight-list">
+          <article class="service-highlight-card" *ngFor="let highlight of serviceHighlights">
+            <h3>{{ highlight.title }}</h3>
+            <p>{{ highlight.description }}</p>
+          </article>
+        </div>
+      </aside>
     </section>
-
-    <p class="linked-model" *ngIf="(isExplainabilityTab || isRobustnessTab) && selectedModel">
-      Linked model: <strong>{{ selectedModel }}</strong>
-    </p>
-
-    <button
-      *ngIf="shouldShowEvaluateButton"
-      type="button"
-      class="evaluate-button"
-      [disabled]="!canEvaluate"
-      (click)="onEvaluateModel()"
-    >
-      {{
-        evaluationInProgress
-          ? 'Running Evaluation...'
-          : isExplainabilityTab
-            ? 'Evaluate Explainability'
-            : isRobustnessTab
-              ? 'Evaluate Robustness'
-              : 'Evaluate Fairness'
-      }}
-    </button>
-
     <section class="status-stack" *ngIf="evaluationInProgress || reportDownloadInProgress || evaluationError || evaluationSuccess || reportStatus">
       <p class="status-row in-progress" *ngIf="evaluationInProgress">
         <span class="dot-spinner" aria-hidden="true"></span>

@@ -4,27 +4,70 @@ Copyright 2024 - 2025 Infosys Ltd.
 The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."
 -->
-<div >
-    <label class="topHeadingLLM mb-2">LLM BENCHMARKING</label>
-    <!-- <mat-tab-group dynamicHeight dynamicWidth color="primary" class="workbenchContainer">
-        <mat-tab label="Model Validation" *ngIf="roleService.checkSubtabExists('LLM-Benchmarking','Model-Validation')">
-            <ng-template matTabContent>
-                <app-model-validation></app-model-validation>
-            </ng-template>
-        </mat-tab>
-        <mat-tab label="Leaderboard" *ngIf="roleService.checkSubtabExists('LLM-Benchmarking','Leaderboard')">
-            <ng-template matTabContent>
-                <app-leaderboard></app-leaderboard>
-            </ng-template>
-        </mat-tab>
-        <mat-tab label="Infosys Leaderboard"
-            *ngIf="roleService.checkSubtabExists('LLM-Benchmarking','Infosys-Leaderboard')">
-            <ng-template matTabContent>
-                <app-infosys-leaderboard></app-infosys-leaderboard>
-            </ng-template>
-        </mat-tab>
-    </mat-tab-group> -->
-    <div  *ngIf="roleService.checkSubtabExists('LLM-Benchmarking','Leaderboard')">
+<div class="llm-evaluations-page">
+    <section class="llm-hero">
+        <div class="llm-hero-copy">
+            <p class="llm-eyebrow">Large Language Model</p>
+            <h1>LLM Evaluations</h1>
+            <p class="llm-description">
+                Compare model performance across the toolkit's evaluation dimensions and review the
+                latest leaderboard signals in one place.
+            </p>
+        </div>
+        <div class="llm-theme-list" aria-label="Evaluation themes">
+            <span class="llm-theme-chip" *ngFor="let theme of evaluationThemes">{{ theme }}</span>
+        </div>
+    </section>
+
+    <section class="llm-summary-grid">
+        <article class="summary-card">
+            <p class="summary-label">Focused View</p>
+            <h2>One LLM surface</h2>
+            <p>
+                The top navigation now lands on the dedicated LLM experience instead of reusing the
+                broader workbench layout.
+            </p>
+        </article>
+        <article class="summary-card">
+            <p class="summary-label">Leaderboard Data</p>
+            <h2>Category-driven comparisons</h2>
+            <p>
+                Switch between robustness, fairness, truthfulness, privacy, and ethics directly in
+                the leaderboard controls below.
+            </p>
+        </article>
+        <article class="summary-card">
+            <p class="summary-label">Role Aware</p>
+            <h2>Permission-safe fallback</h2>
+            <p>
+                If a role cannot access the leaderboard, the page stays styled and explains the
+                limitation instead of dropping into a broken screen.
+            </p>
+        </article>
+    </section>
+
+    <section class="leaderboard-panel" *ngIf="roleService.checkSubtabExists('LLM-Benchmarking','Leaderboard'); else noLeaderboardAccess">
+        <div class="leaderboard-panel-header">
+            <div>
+                <p class="summary-label">Toolkit UI</p>
+                <h2>Evaluation Leaderboard</h2>
+            </div>
+            <p class="leaderboard-panel-copy">
+                Select an evaluation category inside the table controls to inspect model rankings and
+                score breakdowns.
+            </p>
+        </div>
         <app-leaderboard></app-leaderboard>
-    </div>
+    </section>
+
+    <ng-template #noLeaderboardAccess>
+        <section class="leaderboard-panel empty-state">
+            <p class="summary-label">Toolkit UI</p>
+            <h2>Leaderboard access is not available for this role.</h2>
+            <p>
+                The route is active, but the current page permissions do not expose the LLM
+                leaderboard view.
+            </p>
+        </section>
+    </ng-template>
 </div>

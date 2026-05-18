@@ -155,14 +155,12 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
             <!--  -->
         </div>
     </div>
-    <div *ngIf="promptMode">
-
-        <!-- <div>
-        <p>This screen is currently under progress. Please check back later.</p>
-    </div> -->
-        <!-- <app-fm-moderation></app-fm-moderation> -->
-
+    <div *ngIf="promptMode && !selectedOptions['LLM']">
         <app-fm-moderation></app-fm-moderation>
+    </div>
+
+    <div *ngIf="promptMode && selectedOptions['LLM']" style="width: 100%;">
+        <app-leaderboard></app-leaderboard>
     </div>
 
 <div style="height: 50px;">

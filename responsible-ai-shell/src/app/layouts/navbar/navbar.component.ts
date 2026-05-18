@@ -5,7 +5,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."
 */
 import { Component, Inject, OnInit } from '@angular/core';
-import { NavigationEnd, Router } from '@angular/router';
+import { NavigationEnd, Params, Router } from '@angular/router';
 import { TranslateService } from '@ngx-translate/core';
 import { SessionStorageService } from 'ngx-webstorage';
 
@@ -400,5 +400,38 @@ goToUrl(){
   clearLocalStorage(): void {
     localStorage.removeItem('selectedPortfolio');
     localStorage.removeItem('selectedAccount');
+  }
+
+  goToToolkitHome(): void {
+    this.navigateToResponsibleUi();
+  }
+
+  goToAiModels(): void {
+    this.navigateToResponsibleUi();
+  }
+
+  goToLlmEvaluations(): void {
+    this.navigateToResponsibleUi(['llm-office']);
+  }
+
+  isLoginRoute(): boolean {
+    return /^\/login\/?(?:\?.*)?$/.test(this.router.url);
+  }
+
+  isAiModelsActive(): boolean {
+    return /^\/responsible-ui\/?(?:\?.*)?$/.test(this.router.url);
+  }
+
+  isLlmEvaluationsActive(): boolean {
+    return (
+      this.router.url.startsWith('/responsible-ui/llm-office') ||
+      this.router.url.startsWith('/responsible-ui/llm-evaluations') ||
+      this.router.url.startsWith('/responsible-ui/llm-benchmarking')
+    );
+  }
+
+  private navigateToResponsibleUi(pathSegments: string[] = [], queryParams?: Params): void {
+    this.isNavbarCollapsed = true;
+    void this.router.navigate(['/responsible-ui', ...pathSegments], { queryParams });
   }
 }

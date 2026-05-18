@@ -10,6 +10,7 @@ import { PagingConfig } from '../_models/paging-config.model';
 import { environment } from 'src/environments/environment';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { Router } from '@angular/router';
 import { RoleManagerService } from '../services/role-maganer.service';
 import { UserValidationService } from '../services/user-validation.service';
 
@@ -41,7 +42,14 @@ export class UnstructuredTextComponent implements OnInit, PagingConfig {
 
   p: number = 1;
 
-  constructor(private https: HttpClient, private fb: FormBuilder, private snackBar: MatSnackBar, public roleService: RoleManagerService, private validationService:UserValidationService) {
+  constructor(
+    private https: HttpClient,
+    private fb: FormBuilder,
+    private snackBar: MatSnackBar,
+    public roleService: RoleManagerService,
+    private validationService: UserValidationService,
+    private router: Router
+  ) {
     this.pagingConfig = {
       itemsPerPage: this.itemsPerPage,
       currentPage: this.currentPage,
@@ -61,7 +69,7 @@ export class UnstructuredTextComponent implements OnInit, PagingConfig {
   showSpinner1 = false;
   tenantarr: any = []
   selectedOptions: any = []
-  options: any = ["Privacy", "Profanity", "FM-Moderation", "Explainability"]
+  options: any = ["Privacy", "Profanity", "FM-Moderation", "Explainability", "LLM"]
 
 
 
@@ -111,6 +119,10 @@ export class UnstructuredTextComponent implements OnInit, PagingConfig {
       this.uploadMode = false;
       this.promptMode = true;
     }
+    if (this.isLlmOfficeRoute()) {
+      this.uploadMode = false;
+      this.promptMode = true;
+    }
     console.log("This is unstructured text component")
     let ip_port: any
     // user call should happen here
@@ -122,6 +134,10 @@ export class UnstructuredTextComponent implements OnInit, PagingConfig {
     this.setApilist(ip_port)
     this.getLotDetails(this.user)
 
+  }
+
+  private isLlmOfficeRoute(): boolean {
+    return this.router.url.includes('/llm-office') || this.router.url.includes('/llm-evaluations');
   }
 
   // Retrieves the logged-in user from local storage

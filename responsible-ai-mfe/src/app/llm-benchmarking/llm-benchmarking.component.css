@@ -4,64 +4,193 @@ Copyright 2024 - 2025 Infosys Ltd.
 The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."
 */
-:host ::ng-deep.mdc-tab__text-label {
-    color: #382261 !important;
+.llm-evaluations-page {
+    --llm-shell: #305669;
+    --llm-accent: #8626c3;
+    --llm-accent-soft: rgba(134, 38, 195, 0.12);
+    --llm-border: rgba(48, 86, 105, 0.12);
+    --llm-copy: #31424b;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    padding: 1.75rem 2rem 2.5rem;
+    background:
+        radial-gradient(circle at top right, rgba(134, 38, 195, 0.12), transparent 35%),
+        linear-gradient(180deg, rgba(48, 86, 105, 0.06), rgba(48, 86, 105, 0));
+}
+
+.llm-hero {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1.5rem;
+    padding: 1.75rem;
+    border-radius: 1.5rem;
+    border: 1px solid var(--llm-border);
+    background: linear-gradient(135deg, rgba(48, 86, 105, 0.96), rgba(72, 94, 135, 0.94));
+    color: #ffffff;
+    box-shadow: 0 18px 36px rgba(19, 36, 45, 0.14);
+}
+
+.llm-hero-copy {
+    max-width: 720px;
+}
+
+.llm-eyebrow,
+.summary-label {
+    margin: 0 0 0.4rem;
     text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 0.74rem;
+    font-weight: 700;
 }
 
-/* :host ::ng-deep.mdc-checkbox__background{
-    background-color: #8626C3 !important;
-    border-color: #8626C3 !important;
-} */
-
-:host ::ng-deep.mat-mdc-checkbox.mat-primary {
-    --mdc-checkbox-selected-focus-icon-color: #8626C3;
-    --mdc-checkbox-selected-hover-icon-color: #8626C3;
-    --mdc-checkbox-selected-icon-color: #8626C3;
-    --mdc-checkbox-selected-pressed-icon-color: #8626C3;
+.llm-eyebrow {
+    color: rgba(255, 255, 255, 0.78);
 }
 
-:host ::ng-deep.mat-mdc-tab:not(.mat-mdc-tab-disabled) .mdc-tab-indicator__content--underline, .mat-mdc-tab-link:not(.mat-mdc-tab-disabled) .mdc-tab-indicator__content--underline {
-    border-color: #8626C3;
+.summary-label {
+    color: #305669;
 }
 
-:host ::ng-deep.mdc-tab {
-    padding: 0px !important;
-    padding-right: 50px !important;
-    justify-content: start !important;
+.llm-hero h1,
+.summary-card h2,
+.leaderboard-panel h2 {
+    margin: 0;
+    font-family: 'Segoe UI', sans-serif;
 }
 
-:host ::ng-deep.mdc-tab-indicator__content--underline {
-    width: 25%;
-    position: absolute;
-    left: 0;
+.llm-hero h1 {
+    font-size: 2.2rem;
+    font-weight: 700;
 }
 
-:host ::ng-deep.mat-mdc-tab-group.mat-mdc-tab-group-stretch-tabs>.mat-mdc-tab-header .mat-mdc-tab {
-    flex-grow: initial;
-    height: 35px;
+.llm-description,
+.summary-card p,
+.leaderboard-panel-copy,
+.empty-state p {
+    margin: 0;
+    color: inherit;
+    line-height: 1.6;
 }
 
-:host ::ng-deep.mat-mdc-tab-labels {
-    justify-content: end;
+.llm-description {
+    margin-top: 0.85rem;
+    max-width: 620px;
+    color: rgba(255, 255, 255, 0.84);
 }
 
-.tab-container {
-    width: 100%;
-    position: relative;
+.llm-theme-list {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    max-width: 320px;
 }
 
-.topHeadingLLM {
-    left: 0;
-    top: 0;
-    color: #4D4D4D;
-    font-weight: 400;
-    font-size: 24px;
-    font-family: 'Segoe UI';
+.llm-theme-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 38px;
+    padding: 0.55rem 0.95rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    font-size: 0.84rem;
+    font-weight: 600;
 }
 
-.mat-tab-labels {
-    position: absolute;
-    right: 0;
-    top: 0;
+.llm-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.summary-card,
+.leaderboard-panel {
+    border-radius: 1.25rem;
+    border: 1px solid var(--llm-border);
+    background: #ffffff;
+    box-shadow: 0 16px 32px rgba(25, 42, 56, 0.08);
+}
+
+.summary-card {
+    padding: 1.4rem;
+}
+
+.summary-card h2 {
+    margin-bottom: 0.7rem;
+    color: #243746;
+    font-size: 1.1rem;
+}
+
+.summary-card p,
+.leaderboard-panel-copy,
+.empty-state p {
+    color: var(--llm-copy);
+}
+
+.leaderboard-panel {
+    padding: 1.5rem;
+}
+
+.leaderboard-panel-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.leaderboard-panel h2 {
+    color: #243746;
+    font-size: 1.35rem;
+}
+
+.leaderboard-panel-copy {
+    max-width: 420px;
+    font-size: 0.94rem;
+}
+
+.empty-state {
+    text-align: center;
+}
+
+.empty-state h2 {
+    margin-bottom: 0.65rem;
+}
+
+@media (max-width: 992px) {
+    .llm-hero,
+    .leaderboard-panel-header {
+        flex-direction: column;
+    }
+
+    .llm-theme-list {
+        justify-content: flex-start;
+        max-width: none;
+    }
+
+    .llm-summary-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .llm-evaluations-page {
+        padding: 1rem 1rem 2rem;
+    }
+
+    .llm-hero {
+        padding: 1.25rem;
+    }
+
+    .llm-hero h1 {
+        font-size: 1.8rem;
+    }
+
+    .leaderboard-panel {
+        padding: 1rem;
+    }
 }

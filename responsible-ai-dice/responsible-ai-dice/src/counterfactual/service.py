@@ -4,6 +4,7 @@ import logging
 import os
 from dataclasses import dataclass
 from io import BytesIO
+from numbers import Real
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, Dict, Iterable, List, Optional
@@ -54,6 +55,7 @@ class LoadedAssets:
     desired_class_input: Any
     total_counterfactuals: int
     allow_features_to_vary: List[str] | str
+    permitted_range: Dict[str, List[float | int]] | None
 
 
 class CounterfactualService:
@@ -100,6 +102,7 @@ class CounterfactualService:
                 total_CFs=assets.total_counterfactuals,
                 desired_class=dice_desired_class,
                 features_to_vary=assets.allow_features_to_vary,
+                permitted_range=assets.permitted_range,
             )
         except Exception as exc:
             raise ValueError(f'DiCE could not generate counterfactuals: {exc}') from exc
@@ -288,6 +291,16 @@ class CounterfactualService:
             input_row=request.inputRow,
             input_index=request.inputIndex,
         )
+        allow_features_to_vary = self._resolve_features_to_vary(
+            feature_names=feature_names,
+            allow_features_to_vary=request.allowFeaturesToVary,
+            immutable_features=request.immutableFeatures,
+        )
+        permitted_range = self._validate_permitted_range(
+            permitted_range=request.permittedRange,
+            feature_names=feature_names,
+            continuous_features=continuous_features,
+        )
 
         return LoadedAssets(
             model=model,
@@ -303,8 +316,93 @@ class CounterfactualService:
             model_type=type(self._resolve_supported_estimator(model)).__name__,
             desired_class_input=request.desiredClass,
             total_counterfactuals=request.totalCounterfactuals,
-            allow_features_to_vary=request.allowFeaturesToVary or 'all',
+            allow_features_to_vary=allow_features_to_vary,
+            permitted_range=permitted_range,
         )
+
+    def _resolve_features_to_vary(
+        self,
+        feature_names: List[str],
+        allow_features_to_vary: Optional[List[str]],
+        immutable_features: Optional[List[str]],
+    ) -> List[str] | str:
+        immutable_list = self._normalize_feature_name_list(immutable_features)
+        immutable_set = set(immutable_list)
+        self._validate_feature_names(
+            candidate_features=immutable_list,
+            feature_names=feature_names,
+            label='immutable features',
+        )
+
+        if allow_features_to_vary:
+            allowed_features = self._normalize_feature_name_list(allow_features_to_vary)
+            self._validate_feature_names(
+                candidate_features=allowed_features,
+                feature_names=feature_names,
+                label='features_to_vary',
+            )
+            filtered_features = [feature_name for feature_name in allowed_features if feature_name not in immutable_set]
+            if not filtered_features:
+                raise ValueError(
+                    'No mutable features remain after applying immutable_features/features_to_ignore.'
+                )
+            return filtered_features
+
+        if immutable_set:
+            varying_features = [
+                feature_name for feature_name in feature_names if feature_name not in immutable_set
+            ]
+            if not varying_features:
+                raise ValueError(
+                    'immutable_features/features_to_ignore cannot include every available feature.'
+                )
+            return varying_features
+
+        return 'all'
+
+    def _validate_permitted_range(
+        self,
+        permitted_range: Optional[Dict[str, List[float | int]]],
+        feature_names: List[str],
+        continuous_features: List[str],
+    ) -> Dict[str, List[float | int]] | None:
+        if permitted_range is None:
+            return None
+
+        normalized_ranges: Dict[str, List[float | int]] = {}
+        continuous_feature_set = set(continuous_features)
+
+        for feature_name, feature_range in permitted_range.items():
+            self._validate_feature_names(
+                candidate_features=[feature_name],
+                feature_names=feature_names,
+                label='permitted_range features',
+            )
+            if feature_name not in continuous_feature_set:
+                raise ValueError(
+                    f'permitted_range is only supported for numeric features. "{feature_name}" is not numeric.'
+                )
+            if not isinstance(feature_range, list) or len(feature_range) != 2:
+                raise ValueError(
+                    f'permitted_range for "{feature_name}" must be a two-item list like [min, max].'
+                )
+
+            lower_bound, upper_bound = feature_range
+            if not self._is_number(lower_bound) or not self._is_number(upper_bound):
+                raise ValueError(
+                    f'permitted_range for "{feature_name}" must contain numeric min/max values.'
+                )
+            if float(lower_bound) > float(upper_bound):
+                raise ValueError(
+                    f'permitted_range for "{feature_name}" must have min less than or equal to max.'
+                )
+
+            normalized_ranges[feature_name] = [
+                self._to_python(lower_bound),
+                self._to_python(upper_bound),
+            ]
+
+        return normalized_ranges or None
 
     def _load_dataframe_from_bytes(self, dataset_bytes: bytes, file_name: str) -> pd.DataFrame:
         extension = Path(file_name).suffix.lower()
@@ -460,6 +558,32 @@ class CounterfactualService:
     def _serialize_row(self, row: pd.Series, feature_names: Iterable[str]) -> Dict[str, Any]:
         return {feature_name: self._to_python(row[feature_name]) for feature_name in feature_names}
 
+    def _normalize_feature_name_list(self, feature_names: Optional[List[str]]) -> List[str]:
+        if not feature_names:
+            return []
+
+        normalized: List[str] = []
+        seen: set[str] = set()
+        for raw_feature_name in feature_names:
+            feature_name = str(raw_feature_name).strip()
+            if not feature_name or feature_name in seen:
+                continue
+            normalized.append(feature_name)
+            seen.add(feature_name)
+        return normalized
+
+    def _validate_feature_names(
+        self,
+        candidate_features: List[str],
+        feature_names: List[str],
+        label: str,
+    ) -> None:
+        missing_features = [
+            feature_name for feature_name in candidate_features if feature_name not in feature_names
+        ]
+        if missing_features:
+            raise ValueError(f'The following {label} are not present in the dataset columns: {missing_features}')
+
     def _values_equal(self, left: Any, right: Any) -> bool:
         if pd.isna(left) and pd.isna(right):
             return True
@@ -475,6 +599,9 @@ class CounterfactualService:
         if isinstance(value, (np.generic,)):
             return value.item()
         return value
+
+    def _is_number(self, value: Any) -> bool:
+        return isinstance(value, Real) and not isinstance(value, bool)
 
     def _write_counterfactual_csv(self, csv_path: Path, result: CounterfactualResult) -> None:
         rows: List[Dict[str, Any]] = []

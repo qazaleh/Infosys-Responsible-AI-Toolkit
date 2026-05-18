@@ -5,14 +5,39 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."
 -->
 <nav class="navbar navbar-dark navbar-expand-md bg-dark">
-    <a class="navbar-brand logo" (click)="collapseNavbar()">
+    <button class="navbar-brand logo brand-button" type="button" (click)="goToToolkitHome()">
         <img class="navbar-logo" src="../assets/images/trustai-logo.png" alt="TrustAI logo" />
-    </a>
-    <a class="navbar-toggler d-lg-none" href="javascript:void(0);" data-toggle="collapse" data-target="#navbarResponsive" aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation" (click)="toggleNavbar()">
+        <span class="logo-suffix">-x</span>
+    </button>
+    <a *ngIf="!isLoginRoute()" class="navbar-toggler d-lg-none" href="javascript:void(0);" data-toggle="collapse" data-target="#navbarResponsive" aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation" (click)="toggleNavbar()">
         <fa-icon icon="bars"></fa-icon>
     </a>
-    <div class="navbar-collapse collapse" id="navbarResponsive" [ngbCollapse]="isNavbarCollapsed" [ngSwitch]="isAuthenticated()">
-        <ul class="navbar-nav account-nav">
+    <div *ngIf="!isLoginRoute()" class="navbar-collapse collapse" id="navbarResponsive" [ngbCollapse]="isNavbarCollapsed" [ngSwitch]="isAuthenticated()">
+        <div class="navbar-content">
+            <ul class="navbar-nav primary-nav" *ngIf="isAuthenticated()">
+                <li class="nav-item primary-nav-item">
+                    <a
+                        class="nav-link primary-link"
+                        [class.active-nav]="isAiModelsActive()"
+                        href="javascript:void(0);"
+                        (click)="goToAiModels()"
+                    >
+                        <span>AI Models</span>
+                    </a>
+                </li>
+                <li class="nav-item primary-nav-item">
+                    <a
+                        class="nav-link primary-link"
+                        [class.active-nav]="isLlmEvaluationsActive()"
+                        href="javascript:void(0);"
+                        (click)="goToLlmEvaluations()"
+                    >
+                        <span>Large Language Models</span>
+                    </a>
+                </li>
+            </ul>
+
+            <ul class="navbar-nav account-nav">
             <!-- <li class="nav-item" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">
                 <a class="nav-link" routerLink="/" (click)="collapseNavbar()">
                     <span>
@@ -74,7 +99,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
           </span> -->
                     <span class="avatar">{{ getInitials() }}</span>
                 </a>
-                <ul class="dropdown-menu" ngbDropdownMenu aria-labelledby="account-menu">
+                <ul class="dropdown-menu account-menu" ngbDropdownMenu aria-labelledby="account-menu">
                     <form [formGroup]="AccountForm" style="width: 100%; display: flex;flex-direction: column;">
                         <input type="hidden" name="csrfToken" value="nonceService.getNonce()">
                         <li *ngSwitchCase="true" class="PA">
@@ -124,6 +149,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
                     </li>
                 </ul>
             </li>
-        </ul>
+            </ul>
+        </div>
     </div>
 </nav>

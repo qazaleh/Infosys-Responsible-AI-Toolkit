@@ -30,6 +30,7 @@ import { ImageDicomComponent } from '../image-dicom/image-dicom.component';
 import { DicomViewerModule } from '../dicom-lib/dicom-viewer.module';
 import { SharedModule } from '../shared/shared.module';
 import { LiveStreamComponent } from '../live-stream/live-stream.component';
+import { LeaderboardModule } from '../llm-benchmarking/leaderboard/leaderboard.module';
 
 const routes: Routes = [
   { path: '', component: WorkbenchComponent }
@@ -62,6 +63,7 @@ const routes: Routes = [
     NgxSkeletonLoaderModule,
     DicomViewerModule,
     MatDialogModule,
+    LeaderboardModule,
     RouterModule.forChild(routes)
   ],
   exports: [WorkbenchComponent]

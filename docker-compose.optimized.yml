@@ -43,6 +43,7 @@ name: responsible-ai-toolkit-optimized
 #   - privacy: Privacy analysis tools (Python, port 30002)
 #
 # Profile: llm
+#   - llm: LLM completion and generation service (Python, port 8001)
 #   - llm-explain: LLM explainability service (Python, port 8003)
 #   - llm-benchmarking: LLM benchmarking and testing (Python, port 30022)
 #
@@ -458,6 +459,25 @@ services:
       - ./responsible-ai-llm-benchmarking/responsible-ai-benchmarking:/app
     ports:
       - "30022:8000"
+    networks:
+      - rai-network
+    restart: unless-stopped
+
+  llm:
+    container_name: rai-llm
+    profiles: ["llm"]
+    build:
+      context: ./responsible-ai-llm/responsible-ai-llm
+      dockerfile: Dockerfile
+      cache_from: ["type=registry,ref=responsible-ai-llm:latest"]
+    working_dir: /app/src
+    command: ["python3", "main.py"]
+    environment:
+      ALLOWED_ORIGINS: '["*"]'
+    volumes:
+      - ./responsible-ai-llm/responsible-ai-llm:/app
+    ports:
+      - "8001:8000"
     networks:
       - rai-network
     restart: unless-stopped

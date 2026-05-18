@@ -4,7 +4,7 @@ Copyright 2024 - 2025 Infosys Ltd.
 The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."
 */
-import { Component, Input, OnInit, AfterViewInit } from '@angular/core';
+import { AfterViewInit, Component, Input, OnChanges, OnInit, SimpleChanges } from '@angular/core';
 import Chart from 'chart.js/auto';
 import ChartAnnotation from 'chartjs-plugin-annotation';
 Chart.register(ChartAnnotation);
@@ -18,7 +18,7 @@ import { urlList } from 'src/app/urlList';
   templateUrl: './explainability-result.component.html',
   styleUrls: ['./explainability-result.component.css']
 })
-export class ExplainabilityResultComponent implements OnInit, AfterViewInit  {
+export class ExplainabilityResultComponent implements OnInit, OnChanges, AfterViewInit {
   @Input() explainabilityRes: any;
   @Input() explainabilityOption!: string;
   @Input() prompt!: string;
@@ -102,36 +102,25 @@ export class ExplainabilityResultComponent implements OnInit, AfterViewInit  {
   rereadShowErrorMessage: boolean = false;
   tokenImportanceShowErrorMessage: boolean = false;
   gotShowErrorMessage: boolean = false;
+  private explainabilityRequestKey = '';
 
   constructor(private https: HttpClient, private dialog: MatDialog) {}
 
   // Initializes the component and sets up API endpoints
   ngOnInit() {
-    this.option= this.explainabilityOption;
-    let ip_port: any;
-    ip_port = this.getLocalStoreApi();
-    // seting up api list
-    this.setApilist(ip_port);
-
-
-    console.log("fgn::",this.explainabilityOption)
-    console.log("selectedOption",this.selectedOptions)
-    if (this.selectedOptions['Explainability']) {
-   if(this.explainabilityOption == 'LLM'){
-      //this.COV();
-    this.OpenAI();
-    //this.THOT();
-    this.GOT();
-    this.reread();
-    this.logicOfThoughts();
-    }else if (this.explainabilityOption == 'RAG') {
-     this.COVRAG();
-     this.THOTRAG();
-    }
+    this.initializeApiEndpoints();
+    this.loadExplainabilityViews();
+    this.updateTopSentiments();
   }
-  //this.updateTopSentiments();
-  this.topSentiments = this.explainabilityRes?.explanation?.[0]?.token_importance_mapping
-  //this.createBarChart();
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (!changes['explainabilityOption'] && !changes['prompt'] && !changes['selectedOptions'] && !changes['ExplanabilityFileId'] && !changes['selectedExplainabilityModel'] && !changes['explainabilityRes']) {
+      return;
+    }
+
+    this.initializeApiEndpoints();
+    this.loadExplainabilityViews();
+    this.updateTopSentiments();
   }
 
   // Retrieves API configuration from local storage
@@ -159,6 +148,55 @@ export class ExplainabilityResultComponent implements OnInit, AfterViewInit  {
   this.explApiUrl = ip_port.result.Explainability;
   this.rereadUrl = ip_port.result.Llm_Explain + ip_port.result.ReReadReason;
   this.lotUrl = ip_port.result.Llm_Explain + ip_port.result.Explain_LOT;
+  }
+
+  private initializeApiEndpoints() {
+    if (this.OpenAIUrl) {
+      return;
+    }
+
+    const ip_port = this.getLocalStoreApi();
+    if (ip_port) {
+      this.setApilist(ip_port);
+    }
+  }
+
+  private loadExplainabilityViews() {
+    this.option = this.explainabilityOption;
+
+    if (!this.selectedOptions?.['Explainability']) {
+      return;
+    }
+
+    const normalizedPrompt = typeof this.prompt === 'string' ? this.prompt.trim() : '';
+    const requestKey = [
+      this.explainabilityOption,
+      normalizedPrompt,
+      this.ExplanabilityFileId || '',
+      this.selectedExplainabilityModel || ''
+    ].join('::');
+
+    if (!normalizedPrompt || this.explainabilityRequestKey === requestKey) {
+      return;
+    }
+
+    this.explainabilityRequestKey = requestKey;
+
+    if (this.explainabilityOption == 'LLM') {
+      //this.COV();
+      this.OpenAI();
+      //this.THOT();
+      this.GOT();
+      this.reread();
+      this.logicOfThoughts();
+    } else if (this.explainabilityOption == 'RAG' && this.ExplanabilityFileId) {
+      this.COVRAG();
+      this.THOTRAG();
+    }
+  }
+
+  private updateTopSentiments() {
+    this.topSentiments = this.explainabilityRes?.explanation?.[0]?.token_importance_mapping || [];
   }
 
   // Calls the local explainability API

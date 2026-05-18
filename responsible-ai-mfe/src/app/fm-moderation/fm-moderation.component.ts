@@ -19,6 +19,7 @@ import { NgModel } from '@angular/forms';
 import { ImageService } from '../image/image.service';
 import { ImageDialogComponent } from '../image-dialog/image-dialog.component';
 import { FormControl } from '@angular/forms';
+import { Router } from '@angular/router';
 import { urlList } from '../urlList';
 import { NonceService } from '../nonce.service';
 import { UserValidationService } from '../services/user-validation.service';
@@ -152,6 +153,7 @@ export class FmModerationComponent {
   // piiEntitiesToBeRedactedOption: any[] = [];
   piiEntitiesToBeRedactedOption = new FormControl([]);
   panelOpenState = false;
+  isExplainabilityPanelOpen = false;
   privacy_options = ["Privacy-Analyze", "Privacy-Anonymize", "Privacy-Encrypt", "Privacy-Highlight"];
   available_Recognizers = [];
   nlp_options = [
@@ -326,7 +328,20 @@ enableSearch = false;
   bulkRagId: any;
   dataCuratorMsg: string = '';
 
-  constructor(private imageService: ImageService, public roleService: RoleManagerService, private sharedDataService: SharedDataService, private sanitizer: DomSanitizer, private https: HttpClient, public fmService: FmModerationService, public _snackBar: MatSnackBar, public dialog: MatDialog,public nonceService:NonceService,private validationService:UserValidationService,private cdRef: ChangeDetectorRef) { }
+  constructor(
+    private imageService: ImageService,
+    public roleService: RoleManagerService,
+    private sharedDataService: SharedDataService,
+    private sanitizer: DomSanitizer,
+    private https: HttpClient,
+    public fmService: FmModerationService,
+    public _snackBar: MatSnackBar,
+    public dialog: MatDialog,
+    public nonceService: NonceService,
+    private validationService: UserValidationService,
+    private cdRef: ChangeDetectorRef,
+    private router: Router
+  ) {}
   // Initializes the component and sets up API calls
   ngOnInit(): void {
 
@@ -359,6 +374,7 @@ enableSearch = false;
     this.bulkRagId = sessionStorage.getItem('vectorId');
     sessionStorage.removeItem('vectorId');
     this.assignBulkValue();
+    this.configureLlmToolkitDefaults();
   }
 
   // Assigns bulk values for FM moderation
@@ -385,6 +401,29 @@ enableSearch = false;
       this.document = false;
       this.hallucinationSwitchCheck = false;
     }
+  }
+
+  private configureLlmToolkitDefaults() {
+    if (!this.isLlmOfficeRoute() || !this.options.includes('Explainability')) {
+      return;
+    }
+
+    this.selectedOptions['Privacy'] = false;
+    this.selectedOptions['Profanity'] = false;
+    this.selectedOptions['FM-Moderation'] = false;
+    this.selectedOptions['Fairness'] = false;
+    this.selectedOptions['Explainability'] = true;
+    this.explainabilityOption = 'LLM';
+    this.selectedExplainabilityModel = 'gpt-4o';
+    this.viewoptions();
+    this.optionarr = [...this.tenantarr];
+    this.optionFlag = true;
+    this.activeTab = 'Explainability';
+    this.isExplainabilityPanelOpen = true;
+  }
+
+  private isLlmOfficeRoute(): boolean {
+    return this.router.url.includes('/llm-office') || this.router.url.includes('/llm-evaluations');
   }
 
    // Fetches available recognizers for privacy checks
@@ -3128,4 +3167,3 @@ enableSearch = false;
     console.log('Selected Account:', this.selectedAccount);
   }
 }
-

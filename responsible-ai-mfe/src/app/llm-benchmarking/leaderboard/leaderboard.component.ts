@@ -27,6 +27,10 @@ export class LeaderboardComponent {
     this.anotherActiveTable = "Mathematical&Reasoning"   
   }
 
+  formatModelName(modelName: any): string {
+    return String(modelName || '').replace(/infosys\//ig, '').trim();
+  }
+
 // Initializes the component and sets up API calls
   ngOnInit(): void {
     if (window && window.localStorage && typeof localStorage !== 'undefined') {
